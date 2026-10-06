@@ -1,0 +1,13 @@
+{
+  "version": "0.2.1",
+  "defaults": {},
+  "configurations": [
+    {
+      "exe": "${cmake.GAME_PATH}",
+      "name": "UnionPlugin.dll",
+      "project": "CMakeLists.txt",
+      "projectTarget": "UnionPlugin.dll",
+      "type": "dll"
+    }
+  ]
+}

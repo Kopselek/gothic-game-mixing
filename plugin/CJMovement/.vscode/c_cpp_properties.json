@@ -1,0 +1,38 @@
+{
+    "configurations": [
+        {
+            "name": "Linux",
+            "includePath": [
+                "${workspaceFolder}/**"
+            ],
+            "defines": [
+                "WIN32",
+                "_WIN32",
+                "_M_IX86=600"
+            ],
+            "compilerPath": "/usr/bin/clang-cl",
+            "compilerArgs": [
+                "--target=i686-pc-windows-msvc"
+            ],
+            "intelliSenseMode": "windows-clang-x86",
+            "compileCommands": "${workspaceFolder}/compile_commands.json",
+            "browse": {
+                "limitSymbolsToIncludedHeaders": true
+            }
+        },
+        {
+            "name": "Win32",
+            "configurationProvider": "ms-vscode.cmake-tools",
+            "includePath": [
+                "${workspaceFolder}/**"
+            ],
+            "defines": [
+                "WIN32",
+                "_WIN32",
+                "_M_IX86=600"
+            ],
+            "intelliSenseMode": "windows-msvc-x86"
+        }
+    ],
+    "version": 4
+}

@@ -1,0 +1,19 @@
+{
+  "version": 5,
+  "configurePresets": [
+    {
+      "name": "config",
+      "hidden":  true,
+      "cacheVariables": {
+        "GAME_PATH": "C:\\Program Files (x86)\\JoWood\\Gothic II\\System\\Gothic2.exe"
+      }
+    },
+    {
+      "name": "msvc-wine-config",
+      "hidden": true,
+      "cacheVariables": {
+        "MSVC_WINE_ROOT": "$env{HOME}/my_msvc/opt/msvc"
+      }
+    }
+  ]
+}

@@ -1,0 +1,13 @@
+#include <Union/Hook.h>
+#include <ZenGin/zGothicAPI.h>
+
+#ifdef __@PlatformSuffix@
+#define GOTHIC_NAMESPACE @GothicNamespace@
+#define ENGINE Engine_@PlatformSuffix@
+HOOKSPACE(@GothicNamespace@, GetGameVersion() == ENGINE);
+#include "@IppFile@"
+#undef GOTHIC_NAMESPACE
+#undef ENGINE
+#endif
+
+HOOKSPACE(Global, true);

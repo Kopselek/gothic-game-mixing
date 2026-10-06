@@ -1,0 +1,21 @@
+# Only the mod's own sources are published. Nothing of GTA San Andreas or Gothic, and nothing made
+# from their files, goes into the repository: everything is ignored unless listed here.
+/*
+!/.gitignore
+!/.gitmodules
+!/README.md
+!/LICENSE
+!/tools/
+!/plugin/
+
+# tools: the Python sources only (no generated previews, caches or extracted data)
+/tools/*
+!/tools/*.py
+
+# plugin: the CJMovement plugin (the Union libraries are git submodules; plugin/deps is a local copy)
+/plugin/*
+!/plugin/CJMovement/
+/plugin/CJMovement/out/
+/plugin/CJMovement/CHANGELOG.md
+/plugin/CJMovement/README.md
+/plugin/CJMovement/.gitmodules

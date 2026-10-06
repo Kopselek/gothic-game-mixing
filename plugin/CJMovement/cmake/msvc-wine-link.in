@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+msvc_wine_root='@MSVC_WINE_ROOT@'
+source "$msvc_wine_root/bin/x86/msvcenv.sh"
+
+# msvc-wine 14.51 can emit the first WINEPATH entries as root-relative
+# Windows paths (\home\...) instead of Wine drive paths (z:\home\...).
+# link.exe needs the corrected SDK bin entry to spawn rc.exe for release
+# manifests.
+IFS=';' read -r -a wine_paths <<< "$WINEPATH"
+for i in "${!wine_paths[@]}"; do
+    if [[ "${wine_paths[$i]}" == \\* ]]; then
+        wine_paths[$i]="z:${wine_paths[$i]}"
+    fi
+done
+WINEPATH=$(IFS=';'; printf '%s' "${wine_paths[*]}")
+export WINEPATH
+
+exec "$msvc_wine_root/bin/x86/wine-msvc.sh" "$BINDIR/link.exe" "$@"

@@ -1,0 +1,4 @@
+CompileFlags:
+  CompilationDatabase: .
+  Add:
+    - --target=i686-pc-windows-msvc
