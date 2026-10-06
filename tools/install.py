@@ -178,8 +178,9 @@ def install(args):
     starter = os.path.join(gothic, "Start Gothic with CJ.bat")
     open(starter, "w").write(
         "@echo off\r\n"
-        "rem -zautoconvertdata lets Gothic compile CJ's model and animations the first time they are needed\r\n"
-        f'cd /d "{os.path.join(gothic, "system")}"\r\n'
+        "rem -zautoconvertdata lets Gothic compile CJ's model and animations the first time they are needed;\r\n"
+        "rem the path is this folder's own, so the Gothic folder can be moved or copied to another PC\r\n"
+        'cd /d "%~dp0system"\r\n'
         'start "" GothicMod.exe -zautoconvertdata\r\n')
     print(f"\nDone. Start the game with \"{starter}\" (the first start compiles CJ and takes a while).")
 
