@@ -24,7 +24,8 @@
 // pistol sound, kicks CJ's hand up as colt45_fire does, shows GTA's muzzle flash and alerts
 // nearby NPCs; 17 rounds a clip, then CJ reloads (colt45_reload). The rounds are the ammunition
 // items in the inventory. A round that hits the world kicks up dust (and sparks off stone and
-// metal) where it lands, with Gothic's sound of metal hitting that ground.
+// metal) where it lands, with Gothic's sound of metal hitting that ground, and a splash on water;
+// each shot lights up its surroundings for a moment.
 //
 // Rocket launcher (make_cj_pistol.py makes Gothic's second crossbow GTA's rocket launcher, and an
 // unused alchemy ingredient its rockets): drawn as a crossbow too, carried with GTA's rocket stance,
@@ -32,8 +33,10 @@
 // aims it in first person through GTA's rocket crosshair, the left fires (aimed or straight
 // ahead): GTA's RocketFire, the missile flying with a fire and smoke trail until it hits something,
 // then the explosion: a fireball some 5 m across with a column of smoke (Gothic's fire effects made
-// bigger), a few small fires; it throws people off their feet within rocketRadius, kills them
-// close by, shakes the camera and is heard far away. CJ runs with it at his usual run speed.
+// bigger), a few small fires (spray instead on water), a flash of light; it throws people off their
+// feet within rocketRadius, kills them close by, throws the bike, shakes the camera and is heard far
+// away. Unaimed, the rocket flies straight ahead from the shoulder. CJ runs with it at his usual run
+// speed.
 //
 // Purple dildo (make_cj_pistol.py makes Jackal's unused sword GTA's dildo): drawn as Gothic's
 // one-hander, held and swung with GTA's dildo stance, block and three-hit combo (clicks as with the
@@ -107,6 +110,10 @@
 //   wastedHeight=1500   how high (cm above CJ) it rises before it stops (GTA fades out instead)
 //   gtaClock=1          Gothic's world time runs at GTA's pace: an hour a minute instead of an hour
 //                       every 250 s (the sky and the NPCs' daily routines run faster with it)
+//   lightFlashes=1      shots and explosions light up their surroundings for a moment (GTA's
+//                       CPointLights gun flash and explosion light)
+//   bikeLight=1         the bike's headlight lights the way at night while CJ rides it
+//   crashDamage=1       CJ is hurt when a crash throws him off the bike (0 = never)
 //
 // Fists: CJ always has GTA's three-punch combo (Gothic would limit it by fighting talent).
 //   debugLog=1          write jump, sprint and weapon events to CJMovement.log (Gothic folder)
@@ -151,6 +158,9 @@ namespace GOTHIC_NAMESPACE
 			float bikeCamDistance = 450.0f;
 			float bikeGrip = 1.0f;
 			float bikeSpeed = 0.6f;
+			bool lightFlashes = true;
+			bool bikeLight = true;
+			float crashDamage = 1.0f;
 			bool debugLog = true;
 		};
 
@@ -193,6 +203,10 @@ namespace GOTHIC_NAMESPACE
 		static bool jumping = false, launched = false;
 		static float jumpStart = 0.0f, launchTime = 0.0f;
 		static zVEC3 jumpVelocity;
+		static zVEC3 jumpLastPos, jumpLastVel;          // where CJ was and the velocity he was given last frame
+		static int jumpFrames = 0, jumpBlocked = 0;     // frames of flight, of them in a row against a wall
+		static int jumpCeiling = 0;                     // ... and in a row against a ceiling
+		static bool sprintLock = false;                 // Space still held from the bike's handbrake
 		static bool cameraActive = false;
 		static zVEC3 cameraForward;        // horizontal, unit length
 		static float cameraPitch = 20.0f;  // degrees, positive looks down on CJ
@@ -241,6 +255,7 @@ namespace GOTHIC_NAMESPACE
 		static oCNpc* blastTarget = nullptr;              // the one being hurt by a blast (OnDamage_Hit hook)
 		static float blastDamage = 0.0f;
 		static zVEC3 blastDir;
+		static bool blastLethal = false;                  // a rocket's blast kills; a bike's knock knocks out
 		static float shake = 0.0f;                        // camera shake from explosions, 0..1
 		static bool heavy = false;                        // the rocket launcher is out: no sprint, no jump
 		static float fpBlend = 0.0f;                      // 0 third person .. 1 the launcher's first-person aim
@@ -302,6 +317,9 @@ namespace GOTHIC_NAMESPACE
 			settings.bikeCamDistance = zoptions->ReadReal(section, "bikeCamDistance", settings.bikeCamDistance);
 			settings.bikeGrip = zoptions->ReadReal(section, "bikeGrip", settings.bikeGrip);
 			settings.bikeSpeed = zoptions->ReadReal(section, "bikeSpeed", settings.bikeSpeed);
+			settings.lightFlashes = zoptions->ReadBool(section, "lightFlashes", 1) != 0;
+			settings.bikeLight = zoptions->ReadBool(section, "bikeLight", 1) != 0;
+			settings.crashDamage = zoptions->ReadReal(section, "crashDamage", settings.crashDamage);
 			settings.debugLog = zoptions->ReadBool(section, "debugLog", 1) != 0;
 		}
 
@@ -777,11 +795,41 @@ namespace GOTHIC_NAMESPACE
 				}
 				launched = true;
 				launchTime = now;
+				jumpFrames = jumpBlocked = jumpCeiling = 0;
 				Log("jump launch: velocity %.0f %.0f %.0f", jumpVelocity[0], jumpVelocity[1], jumpVelocity[2]);
+			}
+			// GTA's ped stops against what it flies into (CPhysical's collision response takes the
+			// speed into the wall away). Gothic's collision keeps CJ out of the wall but the velocity set
+			// here every frame would keep pushing him into it: a wall that held him back two frames in a
+			// row takes his forward speed, a ceiling his speed up (two frames: one long frame alone does
+			// not look like a wall).
+			zVEC3 pos = hero->GetPositionWorld();
+			float dt = ztimer->frameTimeFloat / 1000.0f;
+			if (jumpFrames >= 2 && dt > 0.0f)
+			{
+				zVEC3 moved = pos - jumpLastPos;
+				float want = sqrtf(jumpLastVel[0] * jumpLastVel[0] + jumpLastVel[2] * jumpLastVel[2]) * dt;
+				float got = sqrtf(moved[0] * moved[0] + moved[2] * moved[2]);
+				jumpBlocked = want > 2.0f && got < want * 0.3f ? jumpBlocked + 1 : 0;
+				if (jumpBlocked >= 2 && (jumpVelocity[0] != 0.0f || jumpVelocity[2] != 0.0f))
+				{
+					jumpVelocity[0] = jumpVelocity[2] = 0.0f;
+					Log("jump: against a wall, forward speed gone");
+				}
+				jumpCeiling = jumpLastVel[1] * dt > 2.0f && moved[1] < jumpLastVel[1] * dt * 0.3f ? jumpCeiling + 1 : 0;
+				if (jumpCeiling >= 2)
+				{
+					jumpVelocity[1] = GTA_GRAVITY * (now - launchTime); // up speed now 0: he falls from here
+					jumpCeiling = 0;
+					Log("jump: head against the ceiling");
+				}
 			}
 			zVEC3 velocity = jumpVelocity;
 			velocity[1] -= GTA_GRAVITY * (now - launchTime);
 			body->SetVelocity(velocity);
+			jumpLastPos = pos;
+			jumpLastVel = velocity;
+			jumpFrames++;
 		}
 
 		// --- Pistol ------------------------------------------------------------------------------
@@ -798,6 +846,81 @@ namespace GOTHIC_NAMESPACE
 			if (sound)
 				zsound->PlaySound3D(sound, source, zSND_SLOT_NONE, nullptr);
 		}
+
+		// Sounds by file name, loaded once and kept (a missing file stays null: no sound).
+		static zCSoundFX* Sound(const char* file)
+		{
+			struct Entry { const char* file; zCSoundFX* fx; };
+			static Entry cache[24];
+			static int count = 0;
+			for (int i = 0; i < count; i++)
+				if (!strcmp(cache[i].file, file))
+					return cache[i].fx;
+			zCSoundFX* fx = zsound ? zsound->LoadSoundFX(zSTRING(file)) : nullptr;
+			if (count < 24)
+				cache[count++] = { file, fx };
+			return fx;
+		}
+
+		// One sound at a vob, `volume` 0..1, heard up to `radius` cm.
+		static void PlayAt(const char* file, zCVob* source, float volume = 1.0f, float radius = 3000.0f)
+		{
+			zCSoundFX* fx = Sound(file);
+			if (!fx || !source || !zsound)
+				return;
+			zCSoundSystem::zTSound3DParams params;
+			params.SetDefaults();
+			params.volume = volume;
+			params.radius = radius;
+			zsound->PlaySound3D(fx, source, zSND_SLOT_NONE, &params);
+		}
+
+		// A looping sound at a vob that fades towards the volume asked for each frame; asked for
+		// another file, it changes over to that one.
+		struct Loop
+		{
+			const char* file = nullptr;
+			int handle = 0;
+			float volume = 0.0f;
+
+			void Update(zCVob* source, const char* name, float want, float pitch, float dt)
+			{
+				if (!zsound || !source)
+					return;
+				if (name != file)
+				{
+					Stop();
+					file = name;
+				}
+				volume += (want - volume) * (dt / 0.1f < 1.0f ? dt / 0.1f : 1.0f);
+				zCSoundFX* fx = file ? Sound(file) : nullptr;
+				if (!fx || (want <= 0.0f && volume < 0.02f))
+				{
+					if (handle)
+						zsound->StopSound(handle);
+					handle = 0;
+					return;
+				}
+				zCSoundSystem::zTSound3DParams params;
+				params.SetDefaults();
+				params.loopType = zCSoundSystem::zSND_LOOPING_ENABLED;
+				params.volume = volume;
+				params.radius = 3000.0f;
+				params.pitchOffset = 12.0f * log2f(pitch > 0.1f ? pitch : 0.1f);
+				if (!handle || !zsound->IsSoundActive(handle))
+					handle = zsound->PlaySound3D(fx, source, zSND_SLOT_NONE, &params);
+				else
+					zsound->UpdateSound3D(handle, &params);
+			}
+
+			void Stop()
+			{
+				if (zsound && handle)
+					zsound->StopSound(handle);
+				handle = 0;
+				volume = 0.0f;
+			}
+		};
 
 		// The dildo scares CJ's enemies off (the plugin's own idea, not GTA's): Gothic's flee states,
 		// ZS_Flee for people (they run with HUMANS_FLEE.MDS and stay hostile to CJ afterwards) and
@@ -863,8 +986,20 @@ namespace GOTHIC_NAMESPACE
 			return false;
 		}
 
-		// The rocket launcher's stance, walk and run (CJ_ROCKET.MDS) while it is the equipped ranged
-		// weapon. Like the sprint overlay it goes on and off the model's prototype list directly:
+		// Whether CJ carries the rocket launcher: in his hand, or in Gothic's ranged slot. Gothic takes a
+		// drawn weapon out of the slot (GetEquippedRangedWeapon is empty while it is in the hand), so
+		// both count; keyed on the slot alone the stance came off the moment the launcher was drawn.
+		static bool RocketCarried(oCNpc* hero)
+		{
+			FindGuns();
+			oCItem* inHand = hero->GetWeaponMode() == NPC_WEAPON_CBOW ? hero->GetWeapon() : nullptr;
+			oCItem* equipped = hero->GetEquippedRangedWeapon();
+			int rocket = gunIndex[GUN_ROCKET];
+			return rocket >= 0 && ((inHand && inHand->GetInstance() == rocket) || (equipped && equipped->GetInstance() == rocket));
+		}
+
+		// The rocket launcher's stance, walk and run (CJ_ROCKET.MDS) while CJ carries it (RocketCarried).
+		// Like the sprint overlay it goes on and off the model's prototype list directly:
 		// Gothic's ApplyOverlay stops every animation the model plays, which broke the launcher's draw
 		// (Gothic drew it again and again) and CJ's moves with it. An overlay an earlier version applied
 		// the Gothic way (kept in savegames) is removed.
@@ -1013,7 +1148,7 @@ namespace GOTHIC_NAMESPACE
 				if (hero->GetEquippedRangedWeapon() != gun)
 					hero->EquipItem(gun);
 				equipped = hero->GetEquippedRangedWeapon();
-				SetRocketOverlay(hero, equipped && equipped->GetInstance() == gunIndex[GUN_ROCKET]);
+				SetRocketOverlay(hero, RocketCarried(hero));
 				hero->GetEM()->OnMessage(new oCMsgWeapon(oCMsgWeapon::EV_DRAWWEAPON, NPC_WEAPON_CBOW, 0), hero);
 				Log("weapon switch: drawing the %s (equipped: %s, %d rounds)", GUN_NAMES[pendingGun],
 					equipped ? equipped->GetInstanceName().ToChar() : "nothing", AmmoCount(hero, pendingGun));
@@ -1040,6 +1175,22 @@ namespace GOTHIC_NAMESPACE
 					return -1.0f;
 			}
 			return enter;
+		}
+
+		// Water along a ray. Gothic's ray tests skip water polygons unless asked to test them
+		// (zTRACERAY_POLY_TEST_WATER), and the flags used elsewhere here also skip see-through
+		// polygons, which water may count as: this ray asks for water and skips nothing else, and it
+		// reports water only when that is the first polygon it meets.
+		static bool WaterHit(zCWorld* world, const zVEC3& from, const zVEC3& ray, zCVob* ignore, zVEC3& point)
+		{
+			int flags = zTRACERAY_STAT_POLY | zTRACERAY_POLY_TEST_WATER | zTRACERAY_VOB_IGNORE_NO_CD_DYN | zTRACERAY_VOB_IGNORE_CHARACTER;
+			if (!world || !world->TraceRayNearestHit(from, ray, ignore, flags) || !world->traceRayReport.foundHit)
+				return false;
+			zCPolygon* poly = world->traceRayReport.foundPoly;
+			if (!poly || !poly->material || poly->material->matGroup != zMAT_GROUP_WATER)
+				return false;
+			point = world->traceRayReport.foundIntersection;
+			return true;
 		}
 
 		// What is under the crosshair (the ray UpdateCamera last aimed): the first wall or object, or
@@ -1105,8 +1256,18 @@ namespace GOTHIC_NAMESPACE
 				point = aimOrigin + aimDir * bestDistance;
 				if (surface)
 					surface->hit = false;
+				return best;
 			}
-			return best;
+			// a round stops in water (GTA: CWeapon::DoBulletImpact's water splash); a lake's bed is no hit
+			zVEC3 water;
+			if (surface && WaterHit(world, aimOrigin, point - aimOrigin, hero, water) && (water - aimOrigin).Length() > nearest)
+			{
+				point = water;
+				surface->hit = true;
+				surface->normal = zVEC3(0.0f, 1.0f, 0.0f);
+				surface->group = zMAT_GROUP_WATER;
+			}
+			return nullptr;
 		}
 
 		// Bullet impacts (CWeapon::DoBulletImpact -> FxManager AddBulletImpact): a puff of dust where a
@@ -1126,13 +1287,13 @@ namespace GOTHIC_NAMESPACE
 		static zCParticleEmitter* Scaled(const char* name, float size, float spread)
 		{
 			struct Entry { const char* name; float size, spread; zCParticleEmitter* emitter; };
-			static Entry cache[8];
+			static Entry cache[16];
 			static int count = 0;
 			for (int i = 0; i < count; i++)
 				if (cache[i].name == name && cache[i].size == size && cache[i].spread == spread)
 					return cache[i].emitter;
 			zCParticleEmitter* proto = zCParticleFX::SearchParticleEmitter(zSTRING(name));
-			if (!proto || count >= 8)
+			if (!proto || count >= 16)
 				return proto;
 			zCParticleEmitter* emitter = new zCParticleEmitter(*proto);
 			emitter->visSizeStart[0] *= size;
@@ -1190,13 +1351,107 @@ namespace GOTHIC_NAMESPACE
 			return vob;
 		}
 
+		// Water thrown up where something hits or crosses it (Gothic's splash, the one its swimmers
+		// make), `size` times as big.
+		static zCVob* Splash(zCWorld* world, const zVEC3& point, float size, float seconds = 0.12f)
+		{
+			return Emit(world, "PFX_WATERSPLASH", point, zVEC3(0.0f, 1.0f, 0.0f), seconds, size, size);
+		}
+
+		// Light flashes (GTA's CPointLights::AddLight for gunfire and explosions): a dynamic light of
+		// Gothic's, `range` cm, fading from `color` to nothing over `seconds`.
+		struct Flash
+		{
+			zCVobLight* light = nullptr;
+			float start = 0.0f, life = 0.0f;
+			zCOLOR color;
+		};
+		static Flash flashes[6];
+
+		static zCVobLight* NewLight(zCWorld* world, const zVEC3& pos, float range, const zCOLOR& color)
+		{
+			zCVobLight* light = new zCVobLight();
+			light->dontWriteIntoArchive = TRUE;
+			light->SetCollDetStat(FALSE);
+			light->SetCollDetDyn(FALSE);
+			light->lightData.isStatic = FALSE;
+			light->lightData.isTurnedOn = TRUE;
+			light->lightData.lightColor = color;
+			light->SetRange(range, TRUE);
+			light->SetPositionWorld(pos);
+			world->AddVob(light);
+			light->SetCollDetStat(FALSE); // (again: no collision with what it shows)
+			light->SetCollDetDyn(FALSE);
+			return light;
+		}
+
+		static void FreeLight(zCVobLight*& light)
+		{
+			if (!light)
+				return;
+			if (zCWorld* world = light->GetHomeWorld())
+				world->RemoveVob(light);
+			light->Release();
+			light = nullptr;
+		}
+
+		static zCOLOR Color(int r, int g, int b)
+		{
+			zCOLOR c;
+			c.r = (unsigned char)r;
+			c.g = (unsigned char)g;
+			c.b = (unsigned char)b;
+			c.alpha = 255;
+			return c;
+		}
+
+		static void LightFlash(zCWorld* world, const zVEC3& pos, float range, const zCOLOR& color, float seconds)
+		{
+			if (!settings.lightFlashes || !world || seconds <= 0.0f)
+				return;
+			Flash* slot = nullptr;
+			for (Flash& f : flashes)
+				if (!f.light)
+				{
+					slot = &f;
+					break;
+				}
+			if (!slot)
+				return;
+			slot->light = NewLight(world, pos, range, color);
+			slot->start = Now();
+			slot->life = seconds;
+			slot->color = color;
+		}
+
+		// every frame: the flashes fade and go
+		static void UpdateFlashes()
+		{
+			float now = ztimer ? Now() : 0.0f;
+			for (Flash& f : flashes)
+			{
+				if (!f.light)
+					continue;
+				float t = (now - f.start) / f.life;
+				if (t >= 1.0f || t < 0.0f || !f.light->GetHomeWorld()) // (or the game time went back: a load)
+				{
+					FreeLight(f.light);
+					continue;
+				}
+				float k = (1.0f - t) * (1.0f - t);
+				f.light->lightData.lightColor = Color((int)(f.color.r * k), (int)(f.color.g * k), (int)(f.color.b * k));
+			}
+		}
+
 		static void Impact(oCNpc* hero, const zVEC3& point, const Surface& surface)
 		{
 			zCWorld* world = hero->GetHomeWorld();
 			if (!world || !surface.hit)
 				return;
 			zCVob* source = nullptr;
-			if (surface.group != zMAT_GROUP_WATER)
+			if (surface.group == zMAT_GROUP_WATER)
+				source = Splash(world, point, 1.0f);
+			else
 				source = Emit(world, "PFX_DUST", point, surface.normal, 0.1f);
 			if (surface.group == zMAT_GROUP_STONE || surface.group == zMAT_GROUP_METAL)
 				Emit(world, "PFX_METALSPARKS", point, surface.normal, 0.15f);
@@ -1311,6 +1566,8 @@ namespace GOTHIC_NAMESPACE
 		// away; within rocketRadius everyone hurt, the more the closer (killed within some 2/5 of it,
 		// half behind a wall) and thrown away from it (Gothic's fly damage); the camera shakes; NPCs
 		// hear it.
+		namespace Bike { static void Blast(oCNpc* hero, const zVEC3& point, float radius); }
+
 		static void Explode(oCNpc* hero, zCWorld* world, const zVEC3& point)
 		{
 			zVEC3 up(0.0f, 1.0f, 0.0f);
@@ -1318,7 +1575,13 @@ namespace GOTHIC_NAMESPACE
 			Emit(world, "MFX_FIRESTORM_INVESTBLAST4", point + up * 80.0f, up, 0.35f, 8.0f, 12.0f);
 			Emit(world, "MFX_FIREBALL_INVEST_BLAST", point + up * 60.0f, up, 0.3f, 5.0f, 5.0f);
 			Emit(world, "FIRE_SMOKE", point + up * 50.0f, up, 2.5f, 5.0f, 4.0f);
-			int fires = (int)(Now() * 1000.0f) % 4;
+			LightFlash(world, point + up * 100.0f, 1500.0f, Color(255, 170, 80), 1.0f); // CExplosion's light
+			// on water a column of spray instead of fires (GTA: CExplosion's water splash)
+			zVEC3 water;
+			bool onWater = WaterHit(world, point + up * 150.0f, up * -300.0f, hero, water);
+			if (onWater)
+				Splash(world, water, 5.0f, 0.4f);
+			int fires = onWater ? 0 : (int)(Now() * 1000.0f) % 4;
 			for (int i = 0; i < fires; i++)
 			{
 				float a = Now() * 7.3f + i * 2.1f, r = 150.0f + 250.0f * fabsf(sinf(a * 1.7f));
@@ -1326,9 +1589,14 @@ namespace GOTHIC_NAMESPACE
 				zVEC3 from = at + up * 300.0f; // the ground there (GTA: CWorld::FindGroundZFor3DCoord)
 				if (world->TraceRayNearestHit(from, up * -1300.0f, hero, zTRACERAY_STAT_POLY | zTRACERAY_VOB_IGNORE_NO_CD_DYN | zTRACERAY_VOB_IGNORE_CHARACTER)
 					&& world->traceRayReport.foundHit && fabsf(world->traceRayReport.foundIntersection[1] - point[1]) < 1000.0f)
-					Emit(world, "FIRE_MEDIUM", world->traceRayReport.foundIntersection, up, 4.0f + 4.0f * fabsf(sinf(a)));
+				{
+					zVEC3 ground = world->traceRayReport.foundIntersection;
+					if (!WaterHit(world, from, ground - from, hero, water)) // no fire burns under water
+						Emit(world, "FIRE_MEDIUM", ground, up, 4.0f + 4.0f * fabsf(sinf(a)));
+				}
 			}
 			PlayLoud(blastSound, "CJ_ROCKET_EXPLOSION.WAV", source ? source : hero);
+			Bike::Blast(hero, point, settings.rocketRadius > 50.0f ? settings.rocketRadius : 50.0f); // (CJ thrown off first)
 
 			oCWorld* game = ogame ? ogame->GetGameWorld() : nullptr;
 			int flags = zTRACERAY_STAT_POLY | zTRACERAY_POLY_IGNORE_TRANSP | zTRACERAY_VOB_IGNORE_NO_CD_DYN | zTRACERAY_VOB_IGNORE_CHARACTER;
@@ -1351,6 +1619,8 @@ namespace GOTHIC_NAMESPACE
 				blastDamage = share * npc->attribute[NPC_ATR_HITPOINTSMAX];
 				blastDir = Flat(away) + up * 0.6f;
 				blastDir.Normalize();
+				blastLethal = true;
+				bool lethal = blastDamage >= npc->attribute[NPC_ATR_HITPOINTS];
 				if (npc == hero)
 				{
 					if (source)
@@ -1359,6 +1629,18 @@ namespace GOTHIC_NAMESPACE
 				else
 					npc->OnDamage(hero, hero, blastDamage, oEDamageType_Blunt | oEDamageType_Fly, point);
 				blastTarget = nullptr;
+				blastLethal = false;
+				// Gothic knocks a human beaten down by blunt damage out instead of killing him (and the
+				// log showed guards taking blast after blast that way): a blast that takes all his
+				// health kills, as GTA's does. Scripted immortals (NPC_FLAG_IMMORTAL) lose no health
+				// and stay as they are.
+				bool knockedOut = !npc->IsDead() && (npc->IsUnconscious() || npc->attribute[NPC_ATR_HITPOINTS] <= 1);
+				if (npc != hero && lethal && knockedOut && !npc->HasFlag(NPC_FLAG_IMMORTAL))
+				{
+					npc->attribute[NPC_ATR_HITPOINTS] = 0;
+					npc->DoDie(hero);
+					Log("rocket: %s killed (Gothic had knocked him out)", npc->GetInstanceName().ToChar());
+				}
 				Log("rocket: %s %.0f m from the blast, %.0f damage", npc->GetInstanceName().ToChar(), d / 100.0f, share * npc->attribute[NPC_ATR_HITPOINTSMAX]);
 			};
 			for (zCListSort<oCNpc>* node = game && game->voblist_npcs ? game->voblist_npcs->next : nullptr; node; node = node->next)
@@ -1389,8 +1671,10 @@ namespace GOTHIC_NAMESPACE
 		}
 
 		// A rocket from the launcher's muzzle (weapon.dat RLAUNCHER fire offset 0.42 0 0.05 in the
-		// hand's frame) towards what is under the crosshair.
-		static void FireRocket(oCNpc* hero, const zVEC3& point)
+		// hand's frame) towards what is under the crosshair; `level` (fired without aiming): straight
+		// ahead the way CJ faces, level, as GTA fires it from the shoulder. (Towards the crosshair the
+		// follow camera's downward look put the rocket into the ground a few metres in front of CJ.)
+		static void FireRocket(oCNpc* hero, const zVEC3& point, bool level = false)
 		{
 			zCWorld* world = hero->GetHomeWorld();
 			zCModel* model = hero->GetModel();
@@ -1416,8 +1700,11 @@ namespace GOTHIC_NAMESPACE
 			zVEC3 dir = point - muzzle;
 			if (dir.Length() < 100.0f)
 				dir = aimDir;
+			if (level)
+				dir = Flat(hero->GetAtVectorWorld());
 			dir.Normalize();
 			TakeRound(hero, GUN_ROCKET);
+			LightFlash(world, muzzle, 400.0f, Color(255, 190, 110), 0.15f);
 			m->live = true;
 			m->world = world;
 			m->pos = muzzle;
@@ -1476,6 +1763,12 @@ namespace GOTHIC_NAMESPACE
 					float d = RayBox(m.pos, m.dir, box);
 					if (d >= 0.0f && d <= step && (hit < 0.0f || d < hit))
 						hit = d;
+				}
+				zVEC3 water; // it blows up on water, not on the bed below it
+				if (step > 0.0f && WaterHit(m.world, m.pos, m.dir * step, hero, water))
+				{
+					float d = (water - m.pos).Length();
+					hit = hit < 0.0f || d < hit ? d : hit;
 				}
 				m.age += dt;
 				if (hit >= 0.0f || m.age > ROCKET_LIFE)
@@ -1546,6 +1839,12 @@ namespace GOTHIC_NAMESPACE
 			PlaySfx(shotSound, "CJ_PISTOL_SHOT.WAV", hero);
 			lastShot = Now();
 			ShowFlash(hero->GetModel(), true);
+			if (zCModel* model = hero->GetModel()) // the flash lights up what is around (GTA: 3 m)
+			{
+				zCModelNodeInst* node = model->SearchNode(zSTRING("ZS_GUNFLASH"));
+				zVEC3 muzzle = node ? model->GetNodePositionWorld(node) : hero->GetPositionWorld() + zVEC3(0.0f, 60.0f, 0.0f);
+				LightFlash(hero->GetHomeWorld(), muzzle, 300.0f, Color(255, 220, 140), 0.08f);
+			}
 			oCNpc::AssessFightSound_S(hero, hero->GetPositionWorld(), target);
 			if (!target)
 			{
@@ -1647,10 +1946,12 @@ namespace GOTHIC_NAMESPACE
 			// while it is out: GTA's CJ neither sprints nor jumps with it)
 			heavy = rocket;
 			oCItem* equipped = hero->GetEquippedRangedWeapon();
-			SetRocketOverlay(hero, equipped && equipped->GetInstance() == gunIndex[GUN_ROCKET]);
+			SetRocketOverlay(hero, RocketCarried(hero));
 			static int lastGun = GUN_NONE;
+			static float drawnAt = 0.0f;
 			if (gun != lastGun)
 			{
+				drawnAt = now;
 				oCItem* inHand = hero->GetWeapon();
 				Log("drawn: %s (in hand %s, equipped %s)", gun >= 0 ? GUN_NAMES[gun] : "no gun",
 					inHand ? inHand->GetInstanceName().ToChar() : "nothing", equipped ? equipped->GetInstanceName().ToChar() : "nothing");
@@ -1703,12 +2004,15 @@ namespace GOTHIC_NAMESPACE
 			}
 			if (playing2[0] || playing2[1])
 				BlendGunMoves(model, playing2[0] ? playing2[0] : playing2[1], playing2[0] ? playing2[1] : nullptr);
-			if (rocket && lmb && !aiming && now >= nextShot && clip > 0 && cameraActive)
+			// nothing fires while the draw still swings the gun up (Gothic switches the mode halfway
+			// through it; its weapon message stays queued for a while after, so that is no guide)
+			bool ready = now - drawnAt > 0.35f;
+			if (rocket && lmb && !aiming && now >= nextShot && clip > 0 && cameraActive && ready)
 			{
 				hero->SetHeadingAtWorld(cameraForward); // fired from the shoulder, where the camera looks
 				zVEC3 point;
 				AimTrace(hero, point);
-				FireRocket(hero, point);
+				FireRocket(hero, point, true);
 				nextShot = now + ROCKET_INTERVAL;
 				return;
 			}
@@ -1771,7 +2075,7 @@ namespace GOTHIC_NAMESPACE
 				float kicked = aimY - Recoil(now);
 				model->SetCombineAniXY(aimId, aimX, kicked < 0.0f ? 0.0f : kicked);
 			}
-			if (!lmb || reloading || now < nextShot)
+			if (!lmb || reloading || now < nextShot || !ready)
 				return;
 			if (rocket) // one rocket a load: RocketFire is the shot and the reload
 			{
@@ -1840,8 +2144,14 @@ namespace GOTHIC_NAMESPACE
 		//    falls away faster than GTA's gravity pulls it down by more than the suspension reaches
 		//    (fSuspensionLowerLimit), so crests and ramps throw it into the air, where it flies until
 		//    the ground meets it again;
-		//  - walls and steps over 35 cm stop it (hit fast, CJ is thrown off), people in its way are
-		//    knocked down and hurt by its speed.
+		//  - walls and steps over 35 cm stop it (hit fast, CJ is thrown off and hurt), people in its
+		//    way are thrown down and hurt by its speed; a rocket's blast throws it;
+		//  - water holds it back the deeper it goes, and water up to the seat drowns its engine and
+		//    throws CJ in (it no longer rides across lakes); in water it sinks slowly instead of
+		//    falling;
+		//  - what GTA shows and plays around it: dust behind a spinning or skidding wheel and at speed
+		//    on loose ground, spray through water, GTA's skid sound for the ground, its crash sounds,
+		//    the suspension dipping with a thud on landing, the headlight at night.
 		// While CJ is on the bike Gothic's AI for him rests: the plugin sets him on the seat (his
 		// collision off), plays his GTA rider animations and the engine, and the camera follows the bike.
 		namespace Bike
@@ -2079,6 +2389,11 @@ namespace GOTHIC_NAMESPACE
 				zVEC3 loggedOffset;        // the rider's root offset last written to the log
 				bool collStat = true, collDyn = true;
 				float lastOff = -10.0f;    // when CJ last got off (F held on does not get him on again)
+				float water = -1e30f;      // the water's surface at the bike (none: -1e30)
+				float depth = 0.0f;        // how deep the bike stands in it (cm, wheels' bottom to surface)
+				bool drowned = false;      // in water up to the seat: the engine is dead, the rider swims
+				float squash = 0.0f;       // cm the suspension is pressed in by a landing
+				float nextDust = 0.0f, nextSplash = 0.0f; // when the wheels next throw up dust / water
 			};
 			static State bike;
 
@@ -2249,20 +2564,40 @@ namespace GOTHIC_NAMESPACE
 				return zTRACERAY_STAT_POLY | zTRACERAY_POLY_IGNORE_TRANSP | zTRACERAY_VOB_IGNORE_NO_CD_DYN | zTRACERAY_VOB_IGNORE_CHARACTER;
 			}
 
-			// The ground under a point: a ray from `above` cm over it down to `below` under it.
+			// The ground under a point: a ray from `above` cm over it down to `below` under it. Water is
+			// no ground: under it the ray finds the bed (WaterAt tells how deep it is). Earlier the ray
+			// asked for water polygons, so the bike could ride across a lake.
 			static bool Ground(zCWorld* world, const zVEC3& point, float above, float below, float& y, int* group = nullptr)
 			{
 				zVEC3 from = point + zVEC3(0.0f, above, 0.0f);
-				if (!world->TraceRayNearestHit(from, zVEC3(0.0f, -(above + below), 0.0f), bike.hero, TraceFlags() | zTRACERAY_POLY_TEST_WATER)
-					|| !world->traceRayReport.foundHit)
-					return false;
-				y = world->traceRayReport.foundIntersection[1];
-				if (group)
+				float reach = above + below;
+				for (int pass = 0; pass < 2; pass++)
 				{
+					if (reach <= 0.0f || !world->TraceRayNearestHit(from, zVEC3(0.0f, -reach, 0.0f), bike.hero, TraceFlags())
+						|| !world->traceRayReport.foundHit)
+						return false;
 					zCPolygon* poly = world->traceRayReport.foundPoly;
-					*group = poly && poly->material ? poly->material->matGroup : zMAT_GROUP_UNDEF;
+					int hitGroup = poly && poly->material ? poly->material->matGroup : zMAT_GROUP_UNDEF;
+					float hitY = world->traceRayReport.foundIntersection[1];
+					if (hitGroup == zMAT_GROUP_WATER && pass == 0) // the surface after all: on through it
+					{
+						reach -= from[1] - hitY + 1.0f;
+						from[1] = hitY - 1.0f;
+						continue;
+					}
+					y = hitY;
+					if (group)
+						*group = hitGroup;
+					return true;
 				}
-				return true;
+				return false;
+			}
+
+			// The water's surface over (or under) a point, -1e30 if there is none.
+			static float WaterAt(zCWorld* world, const zVEC3& point)
+			{
+				zVEC3 surface;
+				return WaterHit(world, point + zVEC3(0.0f, 400.0f, 0.0f), zVEC3(0.0f, -900.0f, 0.0f), bike.hero, surface) ? surface[1] : -1e30f;
 			}
 
 			// The bike as drawn: its pose on the ground turned up about the rear hub in a wheelie (down
@@ -2280,6 +2615,7 @@ namespace GOTHIC_NAMESPACE
 				b = Orientation(bike.yaw, pitch, bike.roll + bike.fallen);
 				float height = data.radiusRear - data.hubRear[1]; // the origin above the ground
 				origin += (b.up - up.up) * height;
+				origin -= b.up * bike.squash; // the suspension pressed in (the wheels stay down: PlaceParts)
 			}
 
 			// The wheels and steering as GTA's CBike::PreRender sets them: the front assembly turns
@@ -2308,13 +2644,14 @@ namespace GOTHIC_NAMESPACE
 					w.at = ToWorld(base, Rotate(zVEC3(0.0f, 0.0f, 1.0f), axis, angle));
 					return w;
 				};
+				zVEC3 sprung = b.up * bike.squash; // the wheels where the ground holds them
 				if (bike.vobs[2])
 				{
-					zVEC3 hub = pivot + ToWorld(steer, data.hubFront - data.pivot);
+					zVEC3 hub = pivot + ToWorld(steer, data.hubFront - data.pivot) + sprung;
 					bike.vobs[2]->SetTrafoObjToWorld(Trafo(spun(steer, bike.spinFront), hub));
 				}
 				if (bike.vobs[3])
-					bike.vobs[3]->SetTrafoObjToWorld(Trafo(spun(b, bike.spinRear), origin + ToWorld(b, data.hubRear)));
+					bike.vobs[3]->SetTrafoObjToWorld(Trafo(spun(b, bike.spinRear), origin + ToWorld(b, data.hubRear) + sprung));
 			}
 
 			// Sets the bike on the ground at its x/z: height and pitch from both wheels.
@@ -2335,10 +2672,14 @@ namespace GOTHIC_NAMESPACE
 				bike.airborne = false;
 			}
 
+			static void StopEffects();
+			static void Headlight(bool on);
+
 			// Puts the bike on CJ's right, facing where he faces.
 			static void Spawn(oCNpc* hero, zCWorld* world)
 			{
 				RemoveVobs();
+				StopEffects();
 				bike = State();
 				bike.world = world;
 				bike.hero = hero;
@@ -2450,14 +2791,36 @@ namespace GOTHIC_NAMESPACE
 					slot->time = now;
 					float share = speed * speed * 0.004f;
 					share = share > 1.5f ? 1.5f : share;
-					float damage = share * npc->attribute[NPC_ATR_HITPOINTSMAX] + npc->protection[1]; // through blunt protection
-					npc->OnDamage(hero, hero, damage, oEDamageType_Blunt, npc->GetPositionWorld());
+					// knocked down and thrown the way the bike goes, through the blast's damage path
+					// (OnDamage_Hit hook: blunt on top of the protection, Gothic's fly damage); people
+					// are knocked out by it rather than killed, as by any blunt hit in Gothic
+					zVEC3 dir = Flat(bike.vel) + zVEC3(0.0f, 0.5f, 0.0f);
+					dir.Normalize();
+					blastTarget = npc;
+					blastDamage = share * npc->attribute[NPC_ATR_HITPOINTSMAX];
+					blastDir = dir;
+					blastLethal = false;
+					npc->OnDamage(hero, hero, blastDamage, oEDamageType_Blunt | oEDamageType_Fly, npc->GetPositionWorld());
+					blastTarget = nullptr;
+					PlayAt("CJ_BIKE_HITPED.WAV", npc); // GTA's COLCARPED
 					bike.speed *= 0.75f;
-					Log("bike: ran into %s at %.0f km/h (%.0f damage)", npc->GetInstanceName().ToChar(), speed * 3.6f, damage);
+					bike.vel = bike.vel * 0.75f;
+					Log("bike: ran into %s at %.0f km/h (%.0f damage)", npc->GetInstanceName().ToChar(), speed * 3.6f, share * npc->attribute[NPC_ATR_HITPOINTSMAX]);
 				}
 			}
 
-			static void Eject(oCNpc* hero, const char* why, float carry = 0.7f);
+			static void Eject(oCNpc* hero, const char* why, float carry = 0.7f, float hurt = 0.0f);
+			static Loop skidLoop, waterLoop;
+			static const char* const CRASH_SOUNDS[5] = { "CJ_BIKE_CRASH1.WAV", "CJ_BIKE_CRASH2.WAV", "CJ_BIKE_CRASH3.WAV",
+				"CJ_BIKE_CRASH4.WAV", "CJ_BIKE_CRASH5.WAV" };
+
+			// GTA's bike crash (SND_GENRL_COLLISIONS_BIKE_CRASH1-5), one of the five, at the bike
+			static void CrashSound(float volume)
+			{
+				static int next = 0;
+				next = (next + 1 + (int)(Now() * 1000.0f) % 3) % 5;
+				PlayAt(CRASH_SOUNDS[next], bike.vobs[0], volume > 1.0f ? 1.0f : volume, 4000.0f);
+			}
 
 			// GTA's tyre for one wheel (CVehicle::ProcessWheel, gta-reversed Vehicle.cpp; GTA's
 			// CVehicle::ProcessBikeWheel is not reverse-engineered): in m per 1/50 s tick, the change it
@@ -2569,7 +2932,7 @@ namespace GOTHIC_NAMESPACE
 				Basis flat = Orientation(bike.yaw, 0.0f, 0.0f);
 				float v = bike.vel.Dot(flat.at); // m per tick along the bike
 				// CBike::ProcessControlInputs (GTA III/VC): gas or brake by the way the bike moves
-				float pedal = rider ? (KeyDown(KEY_W) ? 1.0f : 0.0f) - (KeyDown(KEY_S) ? 1.0f : 0.0f) : 0.0f;
+				float pedal = rider && !bike.drowned ? (KeyDown(KEY_W) ? 1.0f : 0.0f) - (KeyDown(KEY_S) ? 1.0f : 0.0f) : 0.0f;
 				if (fabsf(v) < 0.01f || (v > 0.0f) == (pedal >= 0.0f) || pedal == 0.0f)
 				{
 					bike.gas = pedal;
@@ -2688,9 +3051,20 @@ namespace GOTHIC_NAMESPACE
 							&& world->traceRayReport.foundHit && world->traceRayReport.foundPolyNormal[1] < 0.6f)
 						{
 							float impact = moved / dt;
-							Log("bike: hit a wall at %.0f km/h", impact * 0.036f);
+							zVEC3 at = world->traceRayReport.foundIntersection, normal = world->traceRayReport.foundPolyNormal;
+							zCPolygon* poly = world->traceRayReport.foundPoly;
+							int group = poly && poly->material ? poly->material->matGroup : zMAT_GROUP_UNDEF;
+							if (impact > 300.0f) // (resting against it is no news)
+								Log("bike: hit a wall at %.0f km/h", impact * 0.036f);
+							if (impact > 500.0f) // GTA's crash, dust off the wall, sparks off stone and metal
+							{
+								CrashSound(impact / 2000.0f);
+								Emit(world, "PFX_DUST", at, normal, 0.08f, 1.5f, 1.0f);
+								if (group == zMAT_GROUP_STONE || group == zMAT_GROUP_METAL)
+									Emit(world, "PFX_METALSPARKS", at, normal, 0.12f);
+							}
 							if (rider && impact > 1500.0f)
-								Eject(hero, "crash", 0.3f); // over the bars, before the bike rebounds
+								Eject(hero, "crash", 0.3f, impact / 100.0f); // over the bars, before the bike rebounds
 							bike.vel = bike.vel * -0.15f;
 							bike.omega *= 0.5f;
 							bike.speed = bike.vel.Dot(flat.at) * 5000.0f;
@@ -2708,7 +3082,17 @@ namespace GOTHIC_NAMESPACE
 				zVEC3 hubF = bike.pos + ToWorld(b, data.hubFront), hubR = bike.pos + ToWorld(b, data.hubRear);
 				float groundF = 0.0f, groundR = 0.0f;
 				bool hasF = Ground(world, hubF, 50.0f, 400.0f, groundF, &bike.groundFront), hasR = Ground(world, hubR, 50.0f, 400.0f, groundR, &bike.groundRear);
-				float ballistic = bike.pos[1] + bike.vy * dt - 0.5f * GTA_GRAVITY * dt * dt;
+				// water: how deep the bike stands in it (its wheels' bottom under the surface); in it the
+				// bike sinks slowly instead of falling (GTA's buoyancy, fPercentSubmerged)
+				float height = data.radiusRear - data.hubRear[1]; // the origin above the wheels' bottom
+				float lastDepth = bike.depth;
+				bike.water = WaterAt(world, (hubF + hubR) * 0.5f);
+				bike.depth = bike.water - (bike.pos[1] - height);
+				bool wet = bike.depth > 0.0f;
+				if (wet && lastDepth <= 0.0f && bike.airborne && bike.vy < -300.0f) // it falls into the water
+					Splash(world, zVEC3(bike.pos[0], bike.water, bike.pos[2]), 4.0f, 0.3f);
+				float gravity = wet ? GTA_GRAVITY * 0.2f : GTA_GRAVITY;
+				float ballistic = bike.pos[1] + bike.vy * dt - 0.5f * gravity * dt * dt;
 				float droop = data.suspensionDroop; // how far the wheels reach down (fSuspensionLowerLimit)
 				bool grounded = false;
 				if (hasF || hasR)
@@ -2730,11 +3114,28 @@ namespace GOTHIC_NAMESPACE
 					{
 						if (bike.airborne)
 						{
+							float fall = -bike.vy;
 							if (bike.airTime > 0.25f)
 								Log("bike: landed at %.0f km/h after %.1f s in the air, falling %.1f m/s", fabsf(bike.speed) * 0.036f,
-									bike.airTime, -bike.vy / 100.0f);
+									bike.airTime, fall / 100.0f);
 							if (rider && bike.vy < -1800.0f && bike.airTime > 0.6f)
-								Eject(hero, "hard landing");
+								Eject(hero, "hard landing", 0.7f, fall / 100.0f);
+							if (bike.airTime > 0.25f && fall > 300.0f)
+							{
+								// the suspension takes the landing: the bike dips and comes up again, a
+								// thud (GTA's BOUNCE_SUSPENSION), dust (or water) from under the wheels
+								float dip = fall / 1500.0f * droop;
+								bike.squash = dip > droop ? droop : dip;
+								PlayAt("CJ_BIKE_BOUNCE.WAV", bike.vobs[0], fall / 1200.0f > 1.0f ? 1.0f : fall / 1200.0f);
+								zVEC3 wheels[2] = { zVEC3(hubF[0], groundF, hubF[2]), zVEC3(hubR[0], groundR, hubR[2]) };
+								for (const zVEC3& w : wheels)
+								{
+									if (wet)
+										Splash(world, zVEC3(w[0], bike.water, w[2]), 2.0f);
+									else
+										Emit(world, "ZMODELLANDDUST", w, zVEC3(0.0f, 1.0f, 0.0f), 0.1f, 1.5f, 1.5f);
+								}
+							}
 							bike.vy = 0.0f; // the suspension takes the landing
 						}
 						else
@@ -2762,17 +3163,84 @@ namespace GOTHIC_NAMESPACE
 						Log("bike: in the air at %.0f km/h", fabsf(bike.speed) * 0.036f);
 					bike.airborne = true;
 					bike.pos[1] = ballistic;
-					bike.vy -= GTA_GRAVITY * dt;
+					bike.vy -= gravity * dt;
+					if (wet) // the water holds it back: it sinks slowly
+					{
+						bike.vy = bike.vy < -300.0f ? -300.0f : bike.vy;
+						bike.vy *= expf(-dt * 2.0f);
+					}
 					bike.pitch += bike.leanInput * -1.2f * dt; // lean forward: nose down
 					if (bike.pos[1] < -100000.0f) // fell out of the world
 						bike.vel = zVEC3(0.0f, 0.0f, 0.0f), bike.vy = 0.0f;
 				}
 				if (rider && !bike.airborne)
 					HitPeople(hero, Orientation(bike.yaw, bike.pitch, 0.0f));
+				bike.squash *= expf(-dt * 7.0f); // the suspension comes back up
 
-				// without a rider it stops and falls over (GTA's bikes lie on their side)
+				// water (GTA: a bike in water): it holds the bike back the deeper it goes, and water up to
+				// the seat drowns the engine and throws the rider in, where Gothic has him swim
+				float seat = data.seat[1] + height; // the seat over the wheels' bottom
+				if (wet)
+				{
+					float k = 0.03f * (bike.depth / seat < 1.5f ? bike.depth / seat : 1.5f); // of its speed a tick
+					bike.vel = bike.vel * powf(1.0f - k, ts);
+					bike.omega *= powf(1.0f - k, ts);
+					bike.speed = bike.vel.Dot(flat.at) * 5000.0f;
+					if (!bike.drowned && bike.depth > seat * 0.8f)
+					{
+						bike.drowned = true;
+						bike.riderless = true;
+						Splash(world, zVEC3(bike.pos[0], bike.water, bike.pos[2]), 3.0f, 0.3f);
+						Log("bike: drowned in %.0f cm of water", bike.depth);
+						if (rider)
+							Eject(hero, "into the water", 0.3f);
+					}
+				}
+
+				// what the wheels throw up (GTA's wheel particles): dust behind a wheel that spins or
+				// skids, a trail of it at speed on loose ground (earth, grass), water at speed through
+				// water; and GTA's skid sound for the ground it is on (tarmac for Gothic's stone, wood and
+				// metal, grass for loose ground, gravel for wet)
+				float now = Now(), ground = fabsf(bike.speed);
+				Basis level = Orientation(bike.yaw, bike.pitch, 0.0f);
+				zVEC3 rear = bike.pos + ToWorld(level, data.hubRear) - zVEC3(0.0f, data.radiusRear, 0.0f);
+				zVEC3 front = bike.pos + ToWorld(level, data.hubFront) - zVEC3(0.0f, data.radiusFront, 0.0f);
+				bool hard = bike.groundRear == zMAT_GROUP_STONE || bike.groundRear == zMAT_GROUP_METAL || bike.groundRear == zMAT_GROUP_WOOD;
+				bool spinning = !bike.airborne && rearDown && bike.wheelState[1] == WHEEL_SPINNING;
+				bool rearSkid = !bike.airborne && rearDown && bike.wheelState[1] != WHEEL_NORMAL && bike.wheelState[1] != WHEEL_SPINNING && ground > 150.0f;
+				bool frontSkid = !bike.airborne && frontDown && bike.wheelState[0] != WHEEL_NORMAL && ground > 150.0f;
+				bool trail = !bike.airborne && !hard && bike.groundRear != zMAT_GROUP_WATER && ground > 700.0f;
+				zVEC3 up(0.0f, 1.0f, 0.0f);
+				if (!wet && (spinning || rearSkid || frontSkid || trail) && now >= bike.nextDust)
+				{
+					bool skids = spinning || rearSkid || frontSkid;
+					bike.nextDust = now + (skids ? 0.06f : 0.1f);
+					if (spinning || rearSkid || trail)
+						Emit(world, "PFX_DUST", rear, up, 0.04f, skids || ground > 1500.0f ? 1.6f : 1.0f, 1.0f);
+					if (frontSkid)
+						Emit(world, "PFX_DUST", front, up, 0.04f, 1.6f, 1.0f);
+				}
+				if (wet && !bike.airborne && ground > 250.0f && now >= bike.nextSplash)
+				{
+					bike.nextSplash = now + 0.08f;
+					float size = ground > 1500.0f ? 2.0f : 1.3f;
+					Splash(world, zVEC3(front[0], bike.water, front[2]), size);
+					if (ground > 600.0f)
+						Splash(world, zVEC3(rear[0], bike.water, rear[2]), size);
+				}
+				const char* skidFile = wet || bike.groundRear == zMAT_GROUP_WATER ? "CJ_BIKE_SKID_GRAVEL.WAV"
+					: hard ? "CJ_BIKE_SKID.WAV" : "CJ_BIKE_SKID_GRASS.WAV";
+				bool skidding = (spinning || rearSkid || frontSkid) && bike.depth < 20.0f;
+				skidLoop.Update(bike.vobs[0], skidFile, skidding ? 0.8f : 0.0f, 0.9f + 0.3f * (ground / 3000.0f < 1.0f ? ground / 3000.0f : 1.0f), dt);
+				waterLoop.Update(bike.vobs[0], "CJ_BIKE_WATER.WAV", wet && ground > 100.0f ? (ground / 1500.0f < 1.0f ? ground / 1500.0f : 1.0f) : 0.0f, 1.0f, dt);
+
+				// without a rider it stops and falls over (GTA's bikes lie on their side), with a crash
 				if (bike.riderless && fabsf(bike.speed) < 50.0f && !bike.airborne && bike.fallen == 0.0f)
+				{
 					bike.fallen = 0.0001f;
+					if (!wet)
+						CrashSound(0.4f);
+				}
 				if (bike.fallen != 0.0f)
 					bike.fallen += (1.45f - bike.fallen) * (1.0f - expf(-dt * 6.0f));
 			}
@@ -2856,6 +3324,15 @@ namespace GOTHIC_NAMESPACE
 				if (d.Length() > 220.0f || fabsf(bike.speed) > 100.0f || bike.airborne
 					|| !(state == BS_STAND || state == BS_WALK || state == BS_RUN || state == BS_SPRINT || state == BS_SNEAK))
 					return false;
+				if (bike.drowned) // a bike under water stays dead; out of it, its engine starts again
+				{
+					if (bike.depth > (data.seat[1] + data.radiusRear - data.hubRear[1]) * 0.4f)
+					{
+						Log("bike: drowned, it does not start");
+						return false;
+					}
+					bike.drowned = false;
+				}
 				if (hero->GetWeaponMode() != NPC_WEAPON_NONE)
 					hero->SetWeaponMode(NPC_WEAPON_NONE); // GTA puts the weapon away at once
 				StopSprint(hero);
@@ -2898,10 +3375,14 @@ namespace GOTHIC_NAMESPACE
 				Engine(false, 0.0f);
 			}
 
-			// CJ thrown off (bailing out at speed, a crash, a hard landing): beside the bike, flying on
-			// with part of its speed; Gothic takes over his fall. The bike carries on without him.
-			// `carry`: the share of the bike's speed CJ flies on with.
-			static void Eject(oCNpc* hero, const char* why, float carry)
+			// CJ thrown off (bailing out at speed, a crash, a hard landing, a blast, deep water): beside
+			// the bike, flying on with part of its speed; Gothic takes over his fall. The bike carries on
+			// without him. `carry`: the share of the bike's speed CJ flies on with; `hurt`: how hard (m/s)
+			// he hits what threw him off. GTA hurts a rider knocked off at speed; its numbers
+			// (CEventKnockOffBike) are not reverse-engineered, so this is the plugin's own: nothing up to
+			// 6 m/s, then a share of his health growing to 60 % at 27 m/s (some 100 km/h), times
+			// crashDamage.
+			static void Eject(oCNpc* hero, const char* why, float carry, float hurt)
 			{
 				if (bike.phase == PARKED)
 					return;
@@ -2912,18 +3393,28 @@ namespace GOTHIC_NAMESPACE
 				zVEC3 velocity = bike.vel * (5000.0f * carry) + zVEC3(0.0f, 300.0f, 0.0f);
 				Finish(hero, centre);
 				bike.riderless = true;
+				sprintLock = true; // Space (the handbrake) held on does not make him sprint off
 				hero->SetPhysicsEnabled(TRUE);
 				if (zCRigidBody* body = hero->GetRigidBody())
 					body->SetVelocity(velocity);
-				Log("bike: CJ thrown off (%s) at %.0f km/h", why, fabsf(bike.speed) * 0.036f);
+				float share = (hurt - 6.0f) / 35.0f;
+				float damage = 0.0f;
+				if (share > 0.0f && settings.crashDamage > 0.0f && bike.vobs[0])
+				{
+					share = (share > 0.6f ? 0.6f : share) * settings.crashDamage;
+					damage = share * hero->attribute[NPC_ATR_HITPOINTSMAX];
+					hero->OnDamage(bike.vobs[0], nullptr, damage + hero->protection[oEDamageIndex_Blunt], oEDamageType_Blunt, hero->GetPositionWorld());
+				}
+				Log("bike: CJ thrown off (%s) at %.0f km/h, %.0f damage", why, fabsf(bike.speed) * 0.036f, damage);
 			}
 
-			// F on the bike: off to the left (the right if a wall is in the way); bail out at speed.
+			// F on the bike: off to the left (the right if a wall is in the way); bail out at speed
+			// (hurt by a third of the speed: he jumps, he is not thrown).
 			static void Dismount(oCNpc* hero)
 			{
 				if (fabsf(bike.speed) > 400.0f || bike.airborne)
 				{
-					Eject(hero, "bailed out");
+					Eject(hero, "bailed out", 0.7f, fabsf(bike.speed) / 100.0f / 3.0f);
 					return;
 				}
 				Basis b = Orientation(bike.yaw, bike.pitch, 0.0f);
@@ -3057,6 +3548,65 @@ namespace GOTHIC_NAMESPACE
 					break;
 				}
 				PlaceParts();
+				Headlight(bike.phase == RIDING && !bike.drowned);
+			}
+
+			// A rocket's blast (CJ::Explode) throws the bike away from it and up, as GTA's explosions
+			// throw vehicles: within the blast's radius, harder the closer; its rider is thrown off
+			// (the blast hurts him itself), and without him it falls over where it lands.
+			static void Blast(oCNpc* hero, const zVEC3& point, float radius)
+			{
+				if (!bike.vobs[0] || bike.world != hero->GetHomeWorld())
+					return;
+				zVEC3 away = bike.pos - point;
+				float d = away.Length();
+				if (d >= radius)
+					return;
+				float k = 1.0f - d / radius;
+				if (bike.phase != PARKED)
+					Eject(hero, "blast", 0.3f);
+				bike.riderless = true;
+				bike.fallen = 0.0f;
+				bike.vel += Flat(away) * (k * 1500.0f / 5000.0f); // up to 15 m/s (m per tick)
+				bike.omega += (away.Dot(Orientation(bike.yaw, 0.0f, 0.0f).right) > 0.0f ? 1.0f : -1.0f) * k * 0.08f;
+				bike.vy = bike.vy > k * 900.0f ? bike.vy : k * 900.0f;
+				bike.pos[1] += 25.0f; // above the suspension's reach: in the air
+				bike.airborne = true;
+				CrashSound(k + 0.3f);
+				Log("bike: thrown by a blast %.0f m away", d / 100.0f);
+			}
+
+			// GTA's headlight at night (from 20:00 to 6:00) while CJ rides: Gothic's dynamic lights
+			// are points, so the light hangs a few metres ahead of the bike over the ground it shows.
+			static zCVobLight* headlight = nullptr;
+
+			static void Headlight(bool on)
+			{
+				int day = 0, hour = 12, minute = 0;
+				if (on && ogame)
+					ogame->GetTime(day, hour, minute);
+				if (!on || !settings.bikeLight || !bike.world || (hour >= 6 && hour < 20))
+				{
+					FreeLight(headlight);
+					return;
+				}
+				Basis b;
+				zVEC3 origin;
+				Pose(b, origin);
+				zVEC3 at = origin + Flat(b.at) * 350.0f + zVEC3(0.0f, 80.0f, 0.0f);
+				if (headlight && headlight->GetHomeWorld() != bike.world)
+					FreeLight(headlight);
+				if (!headlight)
+					headlight = NewLight(bike.world, at, 900.0f, Color(255, 244, 214));
+				else
+					headlight->SetPositionWorld(at);
+			}
+
+			static void StopEffects()
+			{
+				FreeLight(headlight);
+				skidLoop.Stop();
+				waterLoop.Stop();
 			}
 
 			// Every frame of the hero's AI: the bike in CJ's world (put next to him when he enters one),
@@ -3087,6 +3637,7 @@ namespace GOTHIC_NAMESPACE
 					float dt = ztimer->frameTimeFloat / 1000.0f;
 					Step(hero, dt > 0.05f ? 0.05f : dt, false);
 					PlaceParts();
+					Headlight(false);
 				}
 			}
 
@@ -3262,7 +3813,11 @@ namespace GOTHIC_NAMESPACE
 			if (melee && (lmb || rmb || attacking || comboTime > 0.0f))
 				lastFight = now;
 			ScareEnemies(hero, dildo);
-			bool sprintOff = moving && KeyDown(KEY_SPACE);
+			bool space = KeyDown(KEY_SPACE);
+			if (sprintLock && !space)
+				sprintLock = false;
+			bool sprintKey = space && !sprintLock;
+			bool sprintOff = moving && sprintKey;
 			if (fists && !lmb && !rmb && !attacking && comboTime <= 0.0f && (now - lastFight > FIST_IDLE || sprintOff)
 				&& now - fistsLowered > 1.0f)
 			{
@@ -3278,7 +3833,7 @@ namespace GOTHIC_NAMESPACE
 			// jump or fall puts the pistol down
 			UpdateGun(hero, !swimming && !jumping && state != BS_FALL);
 			bool onFoot = !fists && moving && !swimming && !aiming;
-			UpdateSprint(hero, onFoot && !heavy && KeyDown(KEY_SPACE), onFoot, !grounded);
+			UpdateSprint(hero, onFoot && !heavy && sprintKey, onFoot, !grounded);
 			if (aiming)
 			{
 				// GTA's aiming: CJ faces where the camera looks and walks or strafes with W/A/S/D
@@ -4434,6 +4989,7 @@ namespace GOTHIC_NAMESPACE
 	{
 		CJ::Hud::Update();
 		CJ::UpdateBursts();
+		CJ::UpdateFlashes();
 		CJ::UpdateMissiles();
 		Hook_oCGame_Render(self, vtable);
 	}
@@ -4450,8 +5006,9 @@ namespace GOTHIC_NAMESPACE
 		oCNpc* hero = oCNpc::player;
 		if (self == CJ::blastTarget)
 		{
-			// a rocket's blast (CJ::Explode): its damage on top of the blunt protection, and Gothic's
-			// fly damage throwing the victim away from the explosion
+			// a rocket's blast (CJ::Explode) or the bike running someone down (CJ::Bike::HitPeople):
+			// its damage on top of the blunt protection, and Gothic's fly damage throwing the victim
+			// away from it
 			int damage = (int)(CJ::blastDamage + 0.5f);
 			damage = damage < 1 ? 1 : damage;
 			int blunt = self->protection[oEDamageIndex_Blunt], fly = self->protection[oEDamageIndex_Fly];
@@ -4463,6 +5020,11 @@ namespace GOTHIC_NAMESPACE
 			desc.enuModeDamage = oEDamageType_Blunt | oEDamageType_Fly;
 			desc.vecDirectionFly = CJ::blastDir;
 			desc.dwFieldsValid |= oCNpc::oEDamageDescFlag_Damage | oCNpc::oEDamageDescFlag_DamageType | oCNpc::oEDamageDescFlag_FlyDirection;
+			if (CJ::blastLethal) // a rocket is no melee hit: Gothic's knock-out rule is for those
+			{
+				desc.enuModeWeapon = oETypeWeapon_Range;
+				desc.dwFieldsValid |= oCNpc::oEDamageDescFlag_WeaponType;
+			}
 		}
 		else if (hero && self == CJ::gunTarget && desc.pNpcAttacker == hero)
 		{

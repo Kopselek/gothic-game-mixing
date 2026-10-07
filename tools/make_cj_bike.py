@@ -11,7 +11,8 @@ rides it with the bike's numbers from GTA's handling.cfg. Writes:
                                                tints vehicle textures by the material colour; the
                                                paint placeholders get the bike's first colours
                                                from carcols.dat, the light placeholders white)
-  Data\\CJ_Bike.vdf     the engine loops of the bike's GTA engine banks (idle, revs, cruise)
+  Data\\CJ_Bike.vdf     the engine loops of the bike's GTA engine banks (idle, revs, cruise), and
+                        GTA's skid loops, crashes, suspension thud, water loop and ped hit
   system\\CJBike.ini    what the plugin needs: the bike's points and size, handling.cfg's numbers
                         and the paths CJ's centre takes getting on and off
 Points in CJBike.ini are GTA metres in bike space: x right, y forward, z up. CJ's riding
@@ -54,6 +55,18 @@ ENGINE_BANKS = {
 }
 # the engine loops: the dummy bank's revs (sound 0) and idle (sound 1), the player bank's cruise (sound 1)
 SOUNDS = {"CJ_BIKE_REV": (0, 0), "CJ_BIKE_IDLE": (0, 1), "CJ_BIKE_CRUISE": (1, 1)}
+# GTA's general sounds the plugin plays around the bike: name -> (bank, sound, loop)
+# (gta-reversed Audio/Enums/eSoundBank.h and SoundIDs.h: SND_BANK_GENRL_VEHICLE_GEN 138,
+# SND_BANK_GENRL_COLLISIONS 39)
+GENERAL_SOUNDS = {
+    "CJ_BIKE_SKID": (138, 0x18, True),         # TARSKIDTWIN1: skidding on hard ground
+    "CJ_BIKE_SKID_GRASS": (138, 0x06, True),   # GRASS_SKID_A: on loose ground
+    "CJ_BIKE_SKID_GRAVEL": (138, 0x08, True),  # GRAVEL_SKID_A: on wet ground
+    "CJ_BIKE_BOUNCE": (138, 0x1F, False),      # BOUNCE_SUSPENSION: landing a jump
+    "CJ_BIKE_WATER": (39, 0x03, True),         # WATER_LOOP: riding through water
+    "CJ_BIKE_HITPED": (39, 0x1D, False),       # COLCARPED: running someone down
+    **{f"CJ_BIKE_CRASH{i}": (39, 0x04 + i, False) for i in range(1, 6)},  # BIKE_CRASH1-5
+}
 # handling.cfg columns of a vehicle line and of a bike ("!") line
 HANDLING = ["mass", "turnMass", "dragMult", "comX", "comY", "comZ", "percentSubmerged", "tractionMult",
             "tractionLoss", "tractionBias", "gears", "maxVelocity", "engineAccel", "engineInertia", "driveType",
@@ -310,7 +323,10 @@ def build(gta_dir, gothic_dir, bike=DEFAULT_BIKE):
     for name, (which, sound) in SOUNDS.items():
         rate, pcm = banks.loop(player if which else dummy, sound)
         files[f"_WORK\\DATA\\SOUND\\SFX\\{name}.WAV"] = wav_at(pcm, rate)
-    write_vdf(os.path.join(gothic_dir, "Data", "CJ_Bike.vdf"), files, comment=f"CJ's {info['model']}: GTA San Andreas engine sounds")
+    for name, (bank, sound, loop) in GENERAL_SOUNDS.items():
+        rate, pcm = banks.loop(bank, sound) if loop else banks.sound(bank, sound)
+        files[f"_WORK\\DATA\\SOUND\\SFX\\{name}.WAV"] = wav_at(pcm, rate)
+    write_vdf(os.path.join(gothic_dir, "Data", "CJ_Bike.vdf"), files, comment=f"CJ's {info['model']}: GTA San Andreas bike sounds")
     print(f"bike: {info['model']} ({info['handling']}, anim group {info['group']}), {len(materials.index)} materials, "
           f"parts {', '.join(f'{p} {len(v[2])} faces' for p, v in parts.items())}, {len(files)} sounds")
     return info

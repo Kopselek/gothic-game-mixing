@@ -83,6 +83,9 @@ SETTINGS = [
     ("bikeCamDistance", "450", "camera distance behind the bike (cm)"),
     ("bikeGrip", "1", "tyre grip, share of GTA's"),
     ("bikeSpeed", "0.6", "bike top speed and pull, share of GTA's"),
+    ("lightFlashes", "1", "shots and explosions light up their surroundings"),
+    ("bikeLight", "1", "the bike's headlight at night"),
+    ("crashDamage", "1", "how much a bike crash hurts CJ, share of the plugin's (0 = never)"),
 ]
 
 # what the tools write into the Gothic folder (for --uninstall)

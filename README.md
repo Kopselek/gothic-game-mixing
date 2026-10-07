@@ -19,11 +19,13 @@ games.
   builds up like GTA's, GTA's jump, and a click combo with your fists.
 - **GTA HUD:** health, money (Gothic's ore), weapon icon with ammo, clock, a radar built from
   Gothic's world map, and "wasted" with San Andreas's death camera.
-- **Weapons:** the Colt 45 pistol (aim, fire, reload, muzzle flash, bullet impacts), the rocket
-  launcher (first-person aim, missile, explosion) and the purple dildo, which makes enemies run
-  away. Q/E cycle them like in GTA.
-- **Motorbike:** the Sanchez, with GTA's handling numbers, gearbox, engine sounds and rider
-  animations. Press F to get on.
+- **Weapons:** the Colt 45 pistol (aim, fire, reload, muzzle flash, bullet impacts and splashes),
+  the rocket launcher (first-person aim, missile, an explosion that kills and throws people and the
+  bike) and the purple dildo, which makes enemies run away. Shots and explosions light up their
+  surroundings. Q/E cycle them like in GTA.
+- **Motorbike:** the Sanchez, with GTA's handling numbers, gearbox, rider animations, and its
+  engine, skid, crash and suspension sounds. Its wheels throw up dust and water spray, it has a
+  headlight at night, and it drowns in deep water. Crashing hurts CJ. Press F to get on.
 - **Clock:** Gothic's day can run at GTA's pace.
 
 ## Requirements
@@ -96,6 +98,8 @@ All settings are in `Gothic.ini`, section `[CJMOVEMENT]`, each with a short note
 - `mouseSpeed`, `invertMouseY`, `camDistance`: camera feel.
 - `gtaHud`, `radar`, `gtaClock`, `wastedCam`: switch features on or off.
 - `rocketRadius`, `fleeRadius`, `bikeSpeed`, `bikeGrip`: weapon and bike tuning.
+- `lightFlashes`, `bikeLight`: light from shots and explosions, the bike's headlight.
+- `crashDamage`: how much bike crashes hurt CJ (0 = not at all).
 - `debugLog=1`: writes `CJMovement.log` in the Gothic folder. Attach it to bug reports.
 
 ## Known limitations
@@ -107,7 +111,8 @@ All settings are in `Gothic.ini`, section `[CJMOVEMENT]`, each with a short note
   - the second crossbow, which becomes the rocket launcher;
   - an unused alchemy ingredient, which becomes rockets;
   - Jackal's unused sword, which becomes the dildo.
-- The bike isn't saved with the game. It appears next to CJ on every load.
+- The bike isn't saved with the game. It appears next to CJ on every load. That is also how you
+  get it back after it drowns in deep water.
 
 ## Building the plugin
 
