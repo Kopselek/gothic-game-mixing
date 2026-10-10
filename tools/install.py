@@ -22,6 +22,7 @@ Gothic.dat and Gothic.ini are backed up first (Gothic.dat.orig, Gothic.ini.befor
 import argparse
 import glob
 import os
+import runpy
 import shutil
 import subprocess
 import sys
