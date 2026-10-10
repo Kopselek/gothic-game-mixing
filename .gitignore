@@ -19,3 +19,8 @@
 /plugin/CJMovement/CHANGELOG.md
 /plugin/CJMovement/README.md
 /plugin/CJMovement/.gitmodules
+
+# GitHub Actions workflows
+!/.github/
+!/.github/workflows/
+!/.github/workflows/*.yml

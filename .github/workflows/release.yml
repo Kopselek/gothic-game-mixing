@@ -1,0 +1,80 @@
+name: Build and publish release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repository and submodules
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Set up MSBuild
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Build CJMovement.vdf
+        shell: cmd
+        run: |
+          call plugin\CJMovement\build.bat
+          if errorlevel 1 exit /b 1
+
+      - name: Verify plugin was built
+        shell: pwsh
+        run: |
+          $plugin = "plugin/CJMovement/out/build/G1-Release/vdf/CJMovement.vdf"
+          if (!(Test-Path $plugin)) {
+            Write-Error "Build succeeded but CJMovement.vdf was not found at $plugin"
+            exit 1
+          }
+
+      # This workflow expects tools/installer_gui.py to exist. It should provide
+      # the folder-picker GUI and call tools/install.py with --gta, --gothic,
+      # and --plugin. The plugin is bundled next to the application below.
+      - name: Install packaging dependencies
+        run: python -m pip install --upgrade pip pyinstaller pillow
+
+      - name: Build installer executable
+        shell: pwsh
+        run: |
+          if (!(Test-Path "tools/installer_gui.py")) {
+            Write-Error "Missing tools/installer_gui.py. Add the GUI wrapper before publishing releases."
+            exit 1
+          }
+          pyinstaller --noconfirm --clean --onefile --windowed `
+            --name GothicGTAInstaller `
+            --add-data "tools;tools" `
+            tools/installer_gui.py
+
+      - name: Assemble release package
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path release-package | Out-Null
+          Copy-Item "dist/GothicGTAInstaller.exe" "release-package/"
+          Copy-Item "plugin/CJMovement/out/build/G1-Release/vdf/CJMovement.vdf" "release-package/"
+          Copy-Item "README.md" "release-package/" -ErrorAction SilentlyContinue
+          Compress-Archive -Path "release-package/*" -DestinationPath "GothicGTAInstaller.zip" -Force
+
+      - name: Publish GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: |
+            GothicGTAInstaller.zip
+            release-package/GothicGTAInstaller.exe
+            release-package/CJMovement.vdf
