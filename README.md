@@ -3,13 +3,115 @@
 Play **Gothic 1** as **CJ** from GTA San Andreas. You get his model, animations and voice, plus
 GTA's controls, camera and HUD, GTA weapons, and the Sanchez motorbike.
 
-This repository contains **no game files** from GTA San Andreas or Gothic. The installation tools read
-**your own** GTA San Andreas installation and build CJ, his animations, sounds,
-textures and the bike straight into **your own** Gothic folder. You need legal copies of both
-games.
+This repository contains **no game files** from GTA San Andreas or Gothic. The installer reads
+**your own** GTA San Andreas installation and builds CJ, his animations, sounds, textures and the
+bike straight into **your own** Gothic folder. You need legal copies of both games.
 
 > Not affiliated with or endorsed by Rockstar Games, Take-Two Interactive, Piranha Bytes or
 > THQ Nordic. All game content belongs to its owners.
+
+## Install
+
+### What you need
+
+* **Windows** with the
+  [Microsoft Visual C++ Redistributable (x86)](https://aka.ms/vs/17/release/vc_redist.x86.exe).
+  Most PCs already have it.
+* **Gothic 1** from Steam or GOG. A disk edition needs the Gothic 1 Player Kit 1.08k first.
+* **GTA San Andreas, classic PC version.** The Definitive Edition won't work: the installer needs
+  `models\gta3.img`, `anim\ped.ifp`, `audio\SFX` and `data\handling.cfg`.
+* Optional: **ffmpeg** for CJ's voice (see [Troubleshooting](#troubleshooting)).
+
+You don't need Python. You also don't need to install Union yourself, because the installer offers
+to do it.
+
+### Steps
+
+1. Download **`GothicGTAInstaller.zip`** from the
+   [latest release](https://github.com/Kopselek/gothic-gtasa/releases/latest).
+2. Extract **both** files, `GothicGTAInstaller.exe` and `CJMovement.vdf`, into the same folder.
+3. Run `GothicGTAInstaller.exe`.
+4. Pick your **GTA San Andreas** folder and your **Gothic 1** folder, then click **Install**.
+   * Steam usually has Gothic in `C:\Program Files (x86)\Steam\steamapps\common\Gothic`.
+   * Choose the folder that contains `system` and `Data`.
+5. If the installer says **Union** is missing, click **Yes**. Union is the loader that runs the
+   mod's plugin. The installer downloads Union 1.0m from its author's archive
+   ([Gratt-5r2/gothic-fix-archive](https://github.com/Gratt-5r2/gothic-fix-archive)), checks the
+   file and installs it.
+6. Wait for "Installation finished". It takes a few minutes.
+
+### Start the game
+
+Start the game with **`Start Gothic with CJ.bat`** in your Gothic folder, not with Steam's Play
+button. The file runs `system\GothicMod.exe -zautoconvertdata`.
+
+* The **first start takes longer**, because Gothic compiles CJ's model and animations.
+* In the **first session**, CJ may hop or fall on slopes while the game is still compiling and
+  caching. That goes away from the next start on.
+
+### What the installer changes
+
+* It backs up the files it edits first: `Gothic.dat` → `Gothic.dat.orig`,
+  `Gothic.ini` → `Gothic.ini.before-cj`, and the files Union replaces →
+  `system\_backup_before_union`.
+* It builds CJ, the weapons, the HUD, the radar and the bike from your GTA files into `_work\DATA`
+  and `Data\CJ_*.vdf`.
+* It makes Gothic's hero CJ and turns two crossbows, the bolts and two unused items into CJ's
+  weapons (see [Known limitations](#known-limitations)).
+* In `Gothic.ini` it sets GTA's keys and adds the `[CJMOVEMENT]` settings. Your own values stay
+  when you install again.
+* It copies the plugin to `Data\CJMovement.vdf` and creates `Start Gothic with CJ.bat`.
+
+Running the installer again is safe. It updates the mod and puts Union back if it's gone.
+
+### Troubleshooting
+
+| Problem | Fix |
+| --- | --- |
+| `Start Gothic with CJ.bat` says **Union is not active**, or CJ is there but there's no GTA HUD, controls or bike | Steam puts Gothic's own DLLs back over Union's when it updates or verifies the game, or when you switch its beta branch (public/workshop). Run the installer again. Keep Gothic on one branch. |
+| Still no HUD, controls or bike although Union is installed | Install the [Visual C++ Redistributable (x86)](https://aka.ms/vs/17/release/vc_redist.x86.exe). |
+| **CJMovement.vdf was not found next to the installer** | Extract both files from the zip into the same folder. |
+| **Can't write …** / permission error | Gothic is in a protected folder (often GOG in `Program Files`). Run the installer as administrator. |
+| **GothicMod.exe is missing** | That's the wrong folder: pick the one with `system` and `Data` in it. A disk edition needs the Gothic 1 Player Kit 1.08k. |
+| **… not found under --gta** | That isn't the classic PC GTA San Andreas folder. Pick the folder that contains `models` and `anim`. |
+| Gothic's hero keeps his own voice | CJ's voice needs ffmpeg. Install it (`winget install Gyan.FFmpeg`), then start the installer again. |
+| Windows SmartScreen or an antivirus warns about the installer | The exe isn't code-signed. Use "More info → Run anyway", or build it yourself from source (see below). |
+| Anything else | Set `debugLog=1` in `system\Gothic.ini`, section `[CJMOVEMENT]`, reproduce the problem, and attach `CJMovement.log` from the Gothic folder to an [issue](https://github.com/Kopselek/gothic-gtasa/issues). |
+
+### Uninstall
+
+The GUI installer has no uninstall button yet. To remove the mod by hand:
+
+1. Delete `Data\CJMovement.vdf`, `Data\CJ_Weapons.vdf`, `Data\CJ_Bike.vdf`, `Data\CJ_Voice.vdf`
+   and `Start Gothic with CJ.bat`.
+2. Copy `system\Gothic.ini.before-cj` over `system\Gothic.ini`. That brings back your keys and
+   settings from before the mod.
+3. Copy `_work\DATA\scripts\_compiled\Gothic.dat.orig` over `Gothic.dat` in the same folder. On
+   Steam you can instead use Gothic 1 → Properties → Installed Files → **Verify integrity of game
+   files**, which also puts Gothic's own DLLs back in place of Union's.
+
+The rest of the mod's files in `_work` are only used by the mod and do no harm.
+
+With Python, `python tools\install.py --uninstall --gothic "<Gothic folder>"` restores
+`Gothic.dat` and `Gothic.ini` from the backups and removes every file the mod added. Union stays
+installed.
+
+### Command line (developers)
+
+You need **Python 3.10+** with Pillow (`pip install pillow`), plus py7zr (`pip install py7zr`) if
+Union has to be installed. ffmpeg on PATH is optional and only needed for CJ's voice.
+
+```bat
+git clone --recursive https://github.com/Kopselek/gothic-gtasa.git
+cd gothic-gtasa
+python tools\install.py --gta "D:\Games\GTA San Andreas" --gothic "C:\Program Files (x86)\Steam\steamapps\common\Gothic" --plugin path\to\CJMovement.vdf
+```
+
+* Get `CJMovement.vdf` from the releases, or build it with `plugin\CJMovement\build.bat` (see
+  [Building the plugin](#building-the-plugin)).
+* `--install-union` installs Union without asking.
+* `--skip-voice` keeps Gothic's hero voice.
+* Each step can also be run on its own: run any `tools\make_cj_*.py` with `--help`.
 
 ## What it does
 
@@ -33,79 +135,10 @@ games.
 
 * **Clock:** Gothic's day can run at GTA's pace.
 
-## Requirements
-
-* **Gothic 1** (Steam or GOG). The plugin targets its `system\GothicMod.exe` (1.08k_mod), which the
-  Steam and GOG versions already have. A disk edition needs the **Gothic 1 Player Kit 1.08k** first.
-  * **Union 1.0m** for Gothic 1. If it's missing, the installer offers to download it from its
-    author's archive ([Gratt-5r2/gothic-fix-archive](https://github.com/Gratt-5r2/gothic-fix-archive))
-    and install it. The files it replaces are backed up in `system\_backup_before_union`.
-
-* **GTA San Andreas, classic PC version** (not the Definitive Edition). The tools read
-  `models\gta3.img`, `anim\ped.ifp`, `audio\SFX` and `data\*`.
-
-* **Option-specific requirements:**
-  * **For Option A (GUI Installer):** No Python installation required. The executable bundles everything needed.
-  * **For Option B (Command Line / Manual scripts):** **Python 3.10+** with Pillow (`pip install pillow`), py7zr (`pip install py7zr`, only to install Union) and **ffmpeg** on PATH (optional, only needed for CJ's voice).
-
-* To build the plugin yourself: **Visual Studio 2022+** (or Build Tools) with the C++ workload
-  and CMake, plus **git**.
-
-## Install
-
-You can install the mod using one of two methods:
-
-### Option A: Using the Graphical Installer (Recommended for End Users)
-*No Python required.*
-
-1. Download the release package (`GothicGTAInstaller.zip`) from the Releases page.
-2. Extract `GothicGTAInstaller.exe` and `CJMovement.vdf` into the same folder.
-3. Run `GothicGTAInstaller.exe`.
-4. Select your **GTA: San Andreas** and **Gothic 1** installation folders using the browse buttons, then click **Install**.
-   If Union isn't installed in that Gothic folder, the installer asks whether to download and install it for you.
-
-### Option B: Running Scripts via Command Line (For Developers / Manual Setup)
-*Requires Python 3.10+ and Pillow.*
-
-1. **Get the code** with its submodules:
-   ```
-   git clone --recursive https://github.com/Kopselek/gothic-gtasa.git
-   ```
-2. **Get the plugin** in one of two ways:
-   * download `CJMovement.vdf` from the Releases page, or
-   * build it with `plugin\CJMovement\build.bat`. The output is `plugin\CJMovement\out\build\G1-Release\vdf\CJMovement.vdf`.
-3. **Run the installer script** with your two game folders:
-   ```
-   python tools\install.py --gta "D:\Games\GTA San Andreas" --gothic "C:\Program Files (x86)\Steam\steamapps\common\Gothic" --plugin path\to\CJMovement.vdf
-   ```
-   The installer:
-   * checks the requirements;
-   * installs Union 1.0m if it's missing and you agree (it asks; `--install-union` says yes up front);
-   * builds everything from your GTA files;
-   * points Gothic's hero at CJ;
-   * sets GTA's keys in `Gothic.ini` and adds the `[CJMOVEMENT]` settings;
-   * copies the plugin into `Data`;
-   * creates `Start Gothic with CJ.bat` in your Gothic folder.
-
-   It backs up `Gothic.dat` and `Gothic.ini` first.
-
----
-
-4. **Start the game** with `Start Gothic with CJ.bat`. It runs `GothicMod.exe -zautoconvertdata`.
-   The first start compiles CJ's model and animations, so it takes a while.
-   When Steam updates or verifies Gothic, or switches its beta branch, it puts Gothic's own DLLs back
-   over Union's. Union and the mod's plugin then stop loading: CJ is there but there's no GTA HUD,
-   controls or bike. `Start Gothic with CJ.bat` checks for this and tells you; run the installer
-   again and it reinstalls Union.
-
-To **uninstall**, run `python tools\install.py --uninstall --gothic "<Gothic folder>"` (or use the GUI option if supported). This restores `Gothic.dat` and `Gothic.ini` and removes the mod's files. Union stays installed.
-
-Each step can also be run on its own. Run any `tools\make_cj_*.py` with `--help` to see how.
-
 ## Controls
 
 | Key | Action |
-|---|---|
+| --- | --- |
 | W/A/S/D | move, relative to the camera |
 | Mouse | camera |
 | Space | sprint |
@@ -147,14 +180,22 @@ All settings are in `Gothic.ini`, section `[CJMOVEMENT]`, each with a short note
 ## Building the plugin
 
 `plugin/CJMovement` is a [Union](https://gitlab.com/union-framework) plugin, based on
-[union-plugin-template](https://github.com/Patrix9999/union-plugin-template). The Union libraries
-are git submodules. `build.bat` finds Visual Studio, fetches the submodules if they're missing,
-and builds `CJMovement.vdf`. All of the mod's code is in `plugin/CJMovement/src/Plugin.ipp`.
+[union-plugin-template](https://github.com/Patrix9999/union-plugin-template). Building it needs
+**Visual Studio 2022+** (or Build Tools) with the C++ workload and CMake, plus **git**. The Union
+libraries are git submodules. `build.bat` finds Visual Studio, fetches the submodules if they're
+missing, and builds `CJMovement.vdf`. All of the mod's code is in
+`plugin/CJMovement/src/Plugin.ipp`.
+
+Releases are built by GitHub Actions (`.github/workflows/release.yml`) when a `v*` tag is pushed:
+the plugin, then the installer exe, which must pass `GothicGTAInstaller.exe --selftest` before
+the release is published.
 
 ## Credits
 
 * [Union framework](https://gitlab.com/union-framework) (union-api, gothic-api) by Gratt & Union
-  Team, under a BSD-style license. Their submodules carry their own licenses.
+  Team, under a BSD-style license. Their submodules carry their own licenses. Union itself is
+  downloaded at install time from Gratt's
+  [gothic-fix-archive](https://github.com/Gratt-5r2/gothic-fix-archive).
 * [union-plugin-template](https://github.com/Patrix9999/union-plugin-template) by Patrix9999,
   which includes GothicVDFS by NicoDE.
 * [gta-reversed](https://github.com/gta-reversed/gta-reversed), used for research into how
