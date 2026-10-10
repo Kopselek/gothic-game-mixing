@@ -27,8 +27,15 @@ LAYOUT = [("Data", "Data"), ("System", "system"), ("BinkMss", "system")]
 
 
 def installed(gothic):
-    return (os.path.exists(os.path.join(gothic, "Data", "Union.vdf"))
-            and os.path.exists(os.path.join(gothic, "system", "Union.patch")))
+    """Union's files are there and system\\Shw32.dll is its loader. Steam puts Gothic's own Shw32.dll (and
+    Vdfs32g, Mss32, binkw32) back when it updates or verifies the game or switches its beta branch, and
+    leaves Union.vdf and Union.patch behind: then Union, and with it the plugin, doesn't load."""
+    shw32 = os.path.join(gothic, "system", "Shw32.dll")
+    if not all(os.path.exists(p) for p in (os.path.join(gothic, "Data", "Union.vdf"),
+                                           os.path.join(gothic, "system", "Union.patch"), shw32)):
+        return False
+    with open(shw32, "rb") as f:
+        return b"Union.patch" in f.read()
 
 
 def download(url, path):

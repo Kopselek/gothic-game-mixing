@@ -115,8 +115,9 @@ def check(gothic, gta, install_union=False):
         except ImportError:
             problems.append("py7zr is missing (it unpacks Union): pip install py7zr")
     elif not union.installed(gothic):
-        problems.append("Union is not installed (Data\\Union.vdf, system\\Union.patch): run again with --install-union "
-                        f"to download and install Union 1.0m, or install it yourself ({union.UNION_THREAD})")
+        problems.append("Union is not installed, or Steam put Gothic's own system\\Shw32.dll back over it (it does when "
+                        "it updates or verifies the game): run again with --install-union to download and install "
+                        f"Union 1.0m, or install it yourself ({union.UNION_THREAD})")
     if gta is not None:
         for need in (r"models\gta3.img", r"anim\ped.ifp", r"audio\SFX", r"data\handling.cfg"):
             if not os.path.exists(os.path.join(gta, need)):
@@ -207,12 +208,19 @@ def install(args):
         print("\nThe CJMovement plugin is not installed yet: build it (plugin\\CJMovement\\build.bat) or download "
               "CJMovement.vdf from the releases, then run this again with --plugin <path> or copy it into Gothic\\Data.")
     starter = os.path.join(gothic, "Start Gothic with CJ.bat")
-    open(starter, "w").write(
+    open(starter, "w", newline="").write(
         "@echo off\r\n"
         "rem -zautoconvertdata lets Gothic compile CJ's model and animations the first time they are needed;\r\n"
         "rem the path is this folder's own, so the Gothic folder can be moved or copied to another PC\r\n"
+        "rem Union loads the plugin: Steam puts Gothic's own Shw32.dll back when it updates the game\r\n"
+        'findstr /m /c:"Union.patch" "%~dp0system\\Shw32.dll" >nul || goto nounion\r\n'
         'cd /d "%~dp0system"\r\n'
-        'start "" GothicMod.exe -zautoconvertdata\r\n')
+        'start "" GothicMod.exe -zautoconvertdata\r\n'
+        "exit /b\r\n"
+        ":nounion\r\n"
+        "echo Union is not active: Steam put Gothic's own system\\Shw32.dll back (it does that when it\r\n"
+        "echo updates or verifies the game). Run GothicGTAInstaller.exe again, it reinstalls Union.\r\n"
+        "pause\r\n")
     print(f"\nDone. Start the game with \"{starter}\" (the first start compiles CJ and takes a while).")
 
 
@@ -257,7 +265,8 @@ def main(argv=None):
     if not args.gta:
         parser.error("--gta is required (your GTA San Andreas folder)")
     if not args.install_union and not union.installed(args.gothic) and sys.stdin and sys.stdin.isatty():
-        answer = input("Union is not installed in this Gothic folder. Download Union 1.0m and install it now? [y/N] ")
+        answer = input("Union is not installed in this Gothic folder (or Steam put Gothic's own DLLs back over it). "
+                       "Download Union 1.0m and install it now? [y/N] ")
         args.install_union = answer.strip().lower() in ("y", "yes", "t", "tak")
     try:
         install(args)

@@ -93,6 +93,10 @@ You can install the mod using one of two methods:
 
 4. **Start the game** with `Start Gothic with CJ.bat`. It runs `GothicMod.exe -zautoconvertdata`.
    The first start compiles CJ's model and animations, so it takes a while.
+   When Steam updates or verifies Gothic, or switches its beta branch, it puts Gothic's own DLLs back
+   over Union's. Union and the mod's plugin then stop loading: CJ is there but there's no GTA HUD,
+   controls or bike. `Start Gothic with CJ.bat` checks for this and tells you; run the installer
+   again and it reinstalls Union.
 
 To **uninstall**, run `python tools\install.py --uninstall --gothic "<Gothic folder>"` (or use the GUI option if supported). This restores `Gothic.dat` and `Gothic.ini` and removes the mod's files. Union stays installed.
 

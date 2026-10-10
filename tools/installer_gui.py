@@ -172,7 +172,8 @@ class InstallerApp:
         if not union.installed(gothic):
             if not messagebox.askyesno(
                 APP_NAME,
-                "Union, which loads the mod's plugin, is not installed in this Gothic folder.\n\n"
+                "Union, which loads the mod's plugin, is not installed in this Gothic folder, or Steam "
+                "put Gothic's own DLLs back over it (it does when it updates or verifies the game).\n\n"
                 "Download Union 1.0m (from its author's GitHub archive) and install it now?\n"
                 "The files it replaces are backed up in system\\_backup_before_union.",
             ):
