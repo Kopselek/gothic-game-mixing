@@ -59,6 +59,7 @@ jobs:
             --name GothicGTAInstaller `
             --add-data "tools;tools" `
             --collect-all PIL `
+            --hidden-import glob `
             tools/installer_gui.py
 
       - name: Assemble release package
