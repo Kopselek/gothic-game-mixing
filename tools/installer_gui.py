@@ -196,7 +196,7 @@ class InstallerApp:
             if tools_dir not in sys.path:
                 sys.path.insert(0, tools_dir)
             sys.argv = [
-                installer_script,
+                "install.py",
                 "--gta", gta,
                 "--gothic", gothic,
                 "--plugin", plugin,
