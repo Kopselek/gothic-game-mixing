@@ -4,25 +4,20 @@ import contextlib
 import io
 import os
 import queue
-import runpy
 import sys
+import tempfile
 import threading
 import traceback
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 
+# install.py and the make_cj_*.py tools it imports run inside this process, so PyInstaller bundles
+# them with everything they import.
+import install
+import union
+
 
 APP_NAME = "Gothic GTA Installer"
-
-
-def resource_path(*parts: str) -> str:
-    """Return a path to bundled resources (PyInstaller) or source-tree resources."""
-    if getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS"):
-        base = sys._MEIPASS
-    else:
-        base = os.path.dirname(os.path.abspath(__file__))
-        # In a source checkout this file lives in tools/, so tools/ is the base.
-    return os.path.join(base, *parts)
 
 
 def release_dir() -> str:
@@ -151,7 +146,6 @@ class InstallerApp:
         gta = self.gta_var.get().strip()
         gothic = self.gothic_var.get().strip()
         plugin = os.path.join(release_dir(), "CJMovement.vdf")
-        installer_script = resource_path("tools", "install.py")
 
         if not gta or not os.path.isdir(gta):
             messagebox.showerror(APP_NAME, "Select a valid GTA: San Andreas folder.")
@@ -167,56 +161,54 @@ class InstallerApp:
                 "or extract both files from the release ZIP.",
             )
             return
-        if not os.path.isfile(installer_script):
-            messagebox.showerror(
-                APP_NAME,
-                "The bundled tools/install.py script was not found. "
-                "Rebuild the installer with tools included.",
-            )
+
+        # everything but Union first, so a wrong folder isn't met with an offer to install Union into it
+        problems = install.check(gothic, gta, install_union=not union.installed(gothic))
+        if problems:
+            messagebox.showerror(APP_NAME, "Can't install:\n\n- " + "\n- ".join(problems))
             return
+
+        argv = ["--gta", gta, "--gothic", gothic, "--plugin", plugin]
+        if not union.installed(gothic):
+            if not messagebox.askyesno(
+                APP_NAME,
+                "Union, which loads the mod's plugin, is not installed in this Gothic folder.\n\n"
+                "Download Union 1.0m (from its author's GitHub archive) and install it now?\n"
+                "The files it replaces are backed up in system\\_backup_before_union.",
+            ):
+                messagebox.showinfo(
+                    APP_NAME,
+                    f"Install Union 1.0m for Gothic 1 yourself ({union.UNION_THREAD}), "
+                    "then click Install again.",
+                )
+                return
+            argv.append("--install-union")
 
         self.running = True
         self.install_button.configure(state="disabled")
         self.status_var.set("Installing…")
         self.append_log("Starting installation…\n")
 
-        thread = threading.Thread(
-            target=self.run_installer,
-            args=(installer_script, gta, gothic, plugin),
-            daemon=True,
-        )
+        thread = threading.Thread(target=self.run_installer, args=(argv,), daemon=True)
         thread.start()
 
-    def run_installer(self, installer_script: str, gta: str, gothic: str, plugin: str) -> None:
-        old_argv = sys.argv[:]
-        old_path = sys.path[:]
+    def run_installer(self, argv: list[str]) -> None:
         writer = QueueWriter(self.output_queue)
+        success = False
         try:
-            tools_dir = os.path.dirname(installer_script)
-            if tools_dir not in sys.path:
-                sys.path.insert(0, tools_dir)
-            sys.argv = [
-                "install.py",
-                "--gta", gta,
-                "--gothic", gothic,
-                "--plugin", plugin,
-            ]
             with contextlib.redirect_stdout(writer), contextlib.redirect_stderr(writer):
-                runpy.run_path(installer_script, run_name="__main__")
+                install.main(argv)
+            success = True
         except SystemExit as exc:
-            if exc.code not in (None, 0):
-                self.output_queue.put(f"\nInstaller exited with code {exc.code}.\n")
-                self.root.after(0, lambda: self.finish(False))
+            if exc.code in (None, 0):
+                success = True
+            elif isinstance(exc.code, str):
+                self.output_queue.put(f"\n{exc.code}\n")
             else:
-                self.root.after(0, lambda: self.finish(True))
+                self.output_queue.put(f"\nInstaller exited with code {exc.code}.\n")
         except Exception:
             self.output_queue.put("\nInstallation failed:\n" + traceback.format_exc() + "\n")
-            self.root.after(0, lambda: self.finish(False))
-        else:
-            self.root.after(0, lambda: self.finish(True))
-        finally:
-            sys.argv = old_argv
-            sys.path[:] = old_path
+        self.root.after(0, lambda: self.finish(success))
 
     def finish(self, success: bool) -> None:
         self.running = False
@@ -233,7 +225,39 @@ class InstallerApp:
             )
 
 
+def selftest(log_path: str | None) -> int:
+    """Check a built installer (CI runs it before publishing): every tool imports, Pillow reads TGA,
+    and Union downloads, verifies and unpacks into a scratch folder."""
+    with contextlib.ExitStack() as stack:
+        out = stack.enter_context(open(log_path, "w", encoding="utf-8")) if log_path else sys.stdout
+        stack.enter_context(contextlib.redirect_stdout(out))
+        stack.enter_context(contextlib.redirect_stderr(out))
+        try:
+            import make_cj_bike, make_cj_hud, make_cj_model, make_cj_pistol, make_cj_radar, make_cj_voice  # noqa: F401
+            import tex
+            from PIL import Image
+
+            print("tools import: ok")
+            print("numpy:", "bundled" if tex._numpy() else "missing (slower textures)")
+            tga = io.BytesIO()
+            Image.new("RGBA", (2, 2)).save(tga, "TGA")
+            Image.open(io.BytesIO(tga.getvalue())).convert("RGBA")
+            print("Pillow TGA: ok")
+            with tempfile.TemporaryDirectory() as gothic:
+                union.install(gothic)
+                if not union.installed(gothic):
+                    raise RuntimeError("Union files missing after union.install")
+            print("selftest: ok")
+            return 0
+        except BaseException:
+            traceback.print_exc()
+            print("selftest: FAILED")
+            return 1
+
+
 def main() -> None:
+    if sys.argv[1:2] == ["--selftest"]:
+        sys.exit(selftest(sys.argv[2] if len(sys.argv) > 2 else None))
     root = tk.Tk()
     try:
         ttk.Style().theme_use("vista")

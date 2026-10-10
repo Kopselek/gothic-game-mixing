@@ -35,16 +35,18 @@ games.
 
 ## Requirements
 
-* **Gothic 1** (Steam or GOG), with:
-  * the **Gothic 1 Player Kit 1.08k**, which provides `system\GothicMod.exe`. The plugin targets that exe.
-  * **Union 1.0m** for Gothic 1.
+* **Gothic 1** (Steam or GOG). The plugin targets its `system\GothicMod.exe` (1.08k_mod), which the
+  Steam and GOG versions already have. A disk edition needs the **Gothic 1 Player Kit 1.08k** first.
+  * **Union 1.0m** for Gothic 1. If it's missing, the installer offers to download it from its
+    author's archive ([Gratt-5r2/gothic-fix-archive](https://github.com/Gratt-5r2/gothic-fix-archive))
+    and install it. The files it replaces are backed up in `system\_backup_before_union`.
 
 * **GTA San Andreas, classic PC version** (not the Definitive Edition). The tools read
   `models\gta3.img`, `anim\ped.ifp`, `audio\SFX` and `data\*`.
 
 * **Option-specific requirements:**
   * **For Option A (GUI Installer):** No Python installation required. The executable bundles everything needed.
-  * **For Option B (Command Line / Manual scripts):** **Python 3.10+** with Pillow (`pip install pillow`) and **ffmpeg** on PATH (optional, only needed for CJ's voice).
+  * **For Option B (Command Line / Manual scripts):** **Python 3.10+** with Pillow (`pip install pillow`), py7zr (`pip install py7zr`, only to install Union) and **ffmpeg** on PATH (optional, only needed for CJ's voice).
 
 * To build the plugin yourself: **Visual Studio 2022+** (or Build Tools) with the C++ workload
   and CMake, plus **git**.
@@ -60,6 +62,7 @@ You can install the mod using one of two methods:
 2. Extract `GothicGTAInstaller.exe` and `CJMovement.vdf` into the same folder.
 3. Run `GothicGTAInstaller.exe`.
 4. Select your **GTA: San Andreas** and **Gothic 1** installation folders using the browse buttons, then click **Install**.
+   If Union isn't installed in that Gothic folder, the installer asks whether to download and install it for you.
 
 ### Option B: Running Scripts via Command Line (For Developers / Manual Setup)
 *Requires Python 3.10+ and Pillow.*
@@ -77,6 +80,7 @@ You can install the mod using one of two methods:
    ```
    The installer:
    * checks the requirements;
+   * installs Union 1.0m if it's missing and you agree (it asks; `--install-union` says yes up front);
    * builds everything from your GTA files;
    * points Gothic's hero at CJ;
    * sets GTA's keys in `Gothic.ini` and adds the `[CJMOVEMENT]` settings;
@@ -90,7 +94,7 @@ You can install the mod using one of two methods:
 4. **Start the game** with `Start Gothic with CJ.bat`. It runs `GothicMod.exe -zautoconvertdata`.
    The first start compiles CJ's model and animations, so it takes a while.
 
-To **uninstall**, run `python tools\install.py --uninstall --gothic "<Gothic folder>"` (or use the GUI option if supported). This restores `Gothic.dat` and `Gothic.ini` and removes the mod's files.
+To **uninstall**, run `python tools\install.py --uninstall --gothic "<Gothic folder>"` (or use the GUI option if supported). This restores `Gothic.dat` and `Gothic.ini` and removes the mod's files. Union stays installed.
 
 Each step can also be run on its own. Run any `tools\make_cj_*.py` with `--help` to see how.
 

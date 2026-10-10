@@ -42,25 +42,32 @@ jobs:
             exit 1
           }
 
-      # This workflow expects tools/installer_gui.py to exist. It should provide
-      # the folder-picker GUI and call tools/install.py with --gta, --gothic,
-      # and --plugin. The plugin is bundled next to the application below.
+      # tools/installer_gui.py imports install.py, which imports the make_cj_*.py tools and union.py,
+      # so PyInstaller bundles them and everything they import (no --add-data or --hidden-import).
+      # Pillow: the radar; py7zr: unpacking Union; numpy: fast texture encoding.
       - name: Install packaging dependencies
-        run: python -m pip install --upgrade pip pyinstaller pillow
+        run: python -m pip install --upgrade pip pyinstaller pillow py7zr numpy
 
       - name: Build installer executable
         shell: pwsh
         run: |
-          if (!(Test-Path "tools/installer_gui.py")) {
-            Write-Error "Missing tools/installer_gui.py. Add the GUI wrapper before publishing releases."
-            exit 1
-          }
           pyinstaller --noconfirm --clean --onefile --windowed `
             --name GothicGTAInstaller `
-            --add-data "tools;tools" `
-            --collect-all PIL `
-            --hidden-import glob `
+            --paths tools `
             tools/installer_gui.py
+
+      # The exe has no console, so it writes its report into a file. It imports every tool and
+      # downloads and unpacks Union into a scratch folder, so a broken build never gets released.
+      - name: Smoke test installer executable
+        shell: pwsh
+        run: |
+          $log = Join-Path $PWD "selftest.log"
+          $p = Start-Process -FilePath "dist/GothicGTAInstaller.exe" -ArgumentList "--selftest", "`"$log`"" -Wait -PassThru
+          if (Test-Path $log) { Get-Content $log }
+          if ($p.ExitCode -ne 0) {
+            Write-Error "GothicGTAInstaller.exe --selftest failed with exit code $($p.ExitCode)"
+            exit 1
+          }
 
       - name: Assemble release package
         shell: pwsh

@@ -30,6 +30,8 @@ HERO_LINE = re.compile(r"(_15_\d+[A-Z]?|/SVM_15_.*)\.WAV$")
 PAIN_LINE = re.compile(r"/SVM_15_(AARGH|DEAD)")
 RATE = 44100  # Gothic's own speech is 44.1 kHz mono IMA ADPCM
 GAP = b"\0\0" * int(RATE * 0.25)
+# no console window per ffmpeg call (one per line) when the GUI installer runs this
+NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
 
 
 def wav_seconds(header):
@@ -61,7 +63,7 @@ def resample(pcm, rate):
     return subprocess.run(
         ["ffmpeg", "-v", "error", "-f", "s16le", "-ar", str(rate), "-ac", "1", "-i", "pipe:0",
          "-f", "s16le", "-ar", str(RATE), "pipe:1"],
-        input=pcm, capture_output=True, check=True).stdout
+        input=pcm, capture_output=True, check=True, creationflags=NO_WINDOW).stdout
 
 
 def load_clips(banks, bank_ids):
@@ -100,7 +102,7 @@ def encode(pcm, tmp_path):
     subprocess.run(
         ["ffmpeg", "-v", "error", "-y", "-f", "s16le", "-ar", str(RATE), "-ac", "1", "-i", "pipe:0",
          "-c:a", "adpcm_ima_wav", "-block_size", "1024", "-bitexact", tmp_path],
-        input=pcm, check=True)
+        input=pcm, capture_output=True, check=True, creationflags=NO_WINDOW)
     with open(tmp_path, "rb") as f:
         wav = bytearray(f.read())
     # ffmpeg writes a bitrate estimate as nAvgBytesPerSec; Gothic's files use the exact

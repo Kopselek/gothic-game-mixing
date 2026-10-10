@@ -205,8 +205,11 @@ def write_ini(gothic_dir, bounds):
     text = open(path, "rb").read().decode("latin-1")
     nl = "\r\n" if "\r\n" in text else "\n"
     lines = text.split(nl)
-    start = lines.index("[CJMOVEMENT]")
-    end = next((i for i in range(start + 1, len(lines)) if lines[i].startswith("[")), len(lines))
+    start = next((i for i, l in enumerate(lines) if l.strip().upper() == "[CJMOVEMENT]"), None)
+    if start is None:  # run on its own before install.py set the section up
+        lines += ["", "[CJMOVEMENT]"]
+        start = len(lines) - 1
+    end = next((i for i in range(start + 1, len(lines)) if lines[i].strip().startswith("[")), len(lines))
     section = [l for l in lines[start:end] if not re.match(r"(radarX0|radarZ0|radarX1|radarZ1)=", l)
                and not l.startswith("; ... world rectangle of the radar map")]
     last = max(i for i, l in enumerate(section) if l.strip())
