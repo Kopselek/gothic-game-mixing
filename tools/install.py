@@ -139,10 +139,13 @@ def set_up_ini(path):
         for i, line in enumerate(lines):
             if line.split("=", 1)[0].strip() == key:
                 lines[i] = f"{key}={value}"
+                
     start = next((i for i, l in enumerate(lines) if l.strip().upper() == "[CJMOVEMENT]"), None)
     if start is None:
-        lines += ["", "[CJMOVEMENT]"]
+        lines.append("")
+        lines.append("[CJMOVEMENT]")
         start = len(lines) - 1
+        
     end = next((i for i in range(start + 1, len(lines)) if lines[i].startswith("[")), len(lines))
     have = {l.split("=", 1)[0].strip() for l in lines[start + 1:end] if "=" in l}
     added = []
@@ -152,7 +155,6 @@ def set_up_ini(path):
     lines[end:end] = added
     open(path, "w", encoding="latin-1").write("\n".join(lines))
     print(f"Gothic.ini: GTA's keys set, {len(added) // 2} [CJMOVEMENT] settings added")
-
 
 def install(args):
     gothic, gta = args.gothic, args.gta
