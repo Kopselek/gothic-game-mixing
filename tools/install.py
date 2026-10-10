@@ -122,7 +122,14 @@ def check(gothic, gta):
 
 def run(tool, *args):
     print(f"\n== {tool} {' '.join(args)}", flush=True)
-    subprocess.run([sys.executable, os.path.join(HERE, tool), *args], cwd=HERE, check=True)
+    script_path = os.path.join(HERE, tool)
+    
+    old_argv = sys.argv[:]
+    try:
+        sys.argv = [script_path, *args]
+        runpy.run_path(script_path, run_name="__main__")
+    finally:
+        sys.argv = old_argv
 
 
 def set_up_ini(path):
