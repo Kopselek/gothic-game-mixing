@@ -58,6 +58,7 @@ jobs:
           pyinstaller --noconfirm --clean --onefile --windowed `
             --name GothicGTAInstaller `
             --add-data "tools;tools" `
+            --collect-all PIL `
             tools/installer_gui.py
 
       - name: Assemble release package
