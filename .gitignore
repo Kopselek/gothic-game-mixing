@@ -1,5 +1,6 @@
-# Only the mod's own sources are published. Nothing of GTA San Andreas or Gothic, and nothing made
-# from their files, goes into the repository: everything is ignored unless listed here.
+# Only the mod's own sources are published. Nothing of Gothic or of the games mashed up with it
+# (GTA San Andreas, The Witcher 3), and nothing made from their files, goes into the repository:
+# everything is ignored unless listed here.
 /*
 !/.gitignore
 !/.gitmodules
@@ -7,18 +8,29 @@
 !/LICENSE
 !/tools/
 !/plugin/
+!/mashups/
 
-# tools: the Python sources only (no generated previews, caches or extracted data)
+# tools: the shared Python sources only (no generated previews, caches or extracted data)
 /tools/*
 !/tools/*.py
 
-# plugin: the CJMovement plugin (the Union libraries are git submodules; plugin/deps is a local copy)
-/plugin/*
-!/plugin/CJMovement/
-/plugin/CJMovement/out/
-/plugin/CJMovement/CHANGELOG.md
-/plugin/CJMovement/README.md
-/plugin/CJMovement/.gitmodules
+# plugin: the shared plugin build (the Union libraries are git submodules; plugin/deps is a local
+# copy, and CHANGELOG/README are the template's own)
+/plugin/out/
+/plugin/deps/
+/plugin/CHANGELOG.md
+/plugin/README.md
+/plugin/.gitmodules.template
+
+# mashups/<game>: its README and plan, its Python tools and its plugin's sources (its journal,
+# research notes and anything extracted stay local)
+/mashups/*/*
+!/mashups/*/README.md
+!/mashups/*/PLAN.md
+!/mashups/*/tools/
+!/mashups/*/plugin/
+/mashups/*/tools/*
+!/mashups/*/tools/*.py
 
 # GitHub Actions workflows
 !/.github/

@@ -1,6 +1,6 @@
 [submodule "plugin/CJMovement/dependencies/union/gothic-api"]
-	path = plugin/CJMovement/dependencies/union/gothic-api
+	path = plugin/dependencies/union/gothic-api
 	url = https://gitlab.com/union-framework/gothic-api.git
 [submodule "plugin/CJMovement/dependencies/union/union-api"]
-	path = plugin/CJMovement/dependencies/union/union-api
+	path = plugin/dependencies/union/union-api
 	url = https://gitlab.com/union-framework/union-api.git

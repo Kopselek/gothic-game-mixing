@@ -31,7 +31,10 @@ usage: python make_cj_hud.py --gta "D:\\Games\\GTA San Andreas" [--gothic DIR]
 """
 import argparse
 import os
+import sys
 
+# Gothic's side (asc, tex, vdf, daedalus, ...) is shared by every mashup: <repo>/tools
+sys.path.insert(1, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "..", "tools"))
 from img import ImgReader
 from tex import write_tex
 from txd import read_txd

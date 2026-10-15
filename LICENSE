@@ -20,6 +20,6 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
-This license covers the mod's own code only. It grants no rights to GTA San Andreas or Gothic,
-whose files the tools read from your own installations, nor to the third-party libraries under
-plugin/CJMovement/dependencies, which keep their own licenses.
+This license covers the mod's own code only. It grants no rights to Gothic, GTA San Andreas or
+The Witcher 3, whose files the tools read from your own installations, nor to the third-party
+libraries under plugin/dependencies, which keep their own licenses.

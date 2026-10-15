@@ -1,0 +1,10 @@
+[BEGINVDF]
+Comment=${PROJECT_NAME} v${PROJECT_VERSION}%%N${PROJECT_DESCRIPTION}
+BaseDir=.
+VDFName=${PROJECT_NAME}.vdf
+[FILES]
+[EXCLUDE]
+[INCLUDE]
+_Work\* -r
+System\* -r
+[ENDVDF]

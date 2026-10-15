@@ -4,11 +4,12 @@ import math
 from png import write_png
 
 
-def render(path, triangles, view="front", size=(360, 640), up=1, right=0, depth=2, flip_right=False):
+def render(path, triangles, view="front", size=(360, 640), up=1, right=0, depth=2, flip_right=False, cull=False):
     """triangles: [((p0, p1, p2), (uv0, uv1, uv2), texture)] where texture has width/height/rgba.
 
     `up`, `right` and `depth` pick which coordinate axes map to the image; the camera
-    looks along -depth. view="side" swaps right for depth.
+    looks along -depth. view="side" swaps right for depth. cull=True drops the triangles that
+    face away from it, as a game does: counter-clockwise is the front (3ds Max's, an ASC's).
     """
     if view == "side":
         right, depth = depth, right
@@ -28,6 +29,11 @@ def render(path, triangles, view="front", size=(360, 640), up=1, right=0, depth=
     light = (0.3, 0.5, 0.8)
     for tri, uvs, tex in triangles:
         a, b, c = (project(p) for p in tri)
+        if cull:
+            e, f = [tri[1][i] - tri[0][i] for i in range(3)], [tri[2][i] - tri[0][i] for i in range(3)]
+            k, l = (depth + 1) % 3, (depth + 2) % 3
+            if e[k] * f[l] - e[l] * f[k] <= 0:  # the face normal's component towards the camera
+                continue
         # flat shading from the 3D face normal, in image-axis order (right, up, depth)
         p0, p1, p2 = ([q[right], q[up], q[depth]] for q in tri)
         u = [p1[i] - p0[i] for i in range(3)]
@@ -60,6 +66,8 @@ def render(path, triangles, view="front", size=(360, 640), up=1, right=0, depth=
                     tx = int((tu % 1.0) * tex.width) % tex.width
                     ty = int((tv % 1.0) * tex.height) % tex.height
                     o = (ty * tex.width + tx) * 4
+                    if tex.rgba[o + 3] < 128:  # alpha-tested, as a game draws hair cards
+                        continue
                     r, g, bl = tex.rgba[o], tex.rgba[o + 1], tex.rgba[o + 2]
                 zbuf[i] = z
                 color[i * 4:i * 4 + 3] = bytes((int(r * shade), int(g * shade), int(bl * shade)))

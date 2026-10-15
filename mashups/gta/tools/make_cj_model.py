@@ -21,7 +21,10 @@ import math
 import os
 import re
 import shutil
+import sys
 
+# Gothic's side (asc, tex, vdf, daedalus, ...) is shared by every mashup: <repo>/tools
+sys.path.insert(1, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "..", "tools"))
 from asc import helper_block, write_animation, write_softskin
 from daedalus import Script
 from dff import Clump

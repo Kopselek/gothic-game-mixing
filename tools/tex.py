@@ -113,6 +113,53 @@ def _encode_dxt1_numpy(np, w, h, rgba):
     return out.tobytes()
 
 
+def _encode_dxt3_numpy(np, w, h, rgba):
+    """DXT3 blocks: explicit 4-bit alpha, then the colour block as _encode_dxt1_numpy fits it."""
+    a = np.frombuffer(rgba, np.uint8).reshape(h, w, 4)[:, :, 3].astype(np.uint64)
+    a = np.pad(a, ((0, -h % 4), (0, -w % 4)), mode="edge")
+    bh, bw = a.shape[0] // 4, a.shape[1] // 4
+    a4 = (a.reshape(bh, 4, bw, 4).transpose(0, 2, 1, 3).reshape(-1, 16) * 15 + 127) // 255
+    alpha_bits = (a4 << (4 * np.arange(16, dtype=np.uint64))).sum(1).astype("<u8")
+    colour = np.frombuffer(_encode_dxt1_numpy(np, w, h, rgba), dtype="<u8")
+    out = np.empty((len(colour), 2), dtype="<u8")
+    out[:, 0], out[:, 1] = alpha_bits, colour
+    return out.tobytes()
+
+
+def _keep_coverage(np, rgba, coverage, ref):
+    """Scale a mip level's alpha so the share of texels at or above `ref` stays `coverage`: the
+    plain average thins alpha-tested hair out to nothing a few levels down."""
+    a = np.frombuffer(rgba, np.uint8).reshape(-1, 4).copy()
+    alpha = a[:, 3].astype(np.float32)
+    lo, hi = 0.25, 8.0
+    for _ in range(20):
+        mid = (lo + hi) / 2
+        if (np.minimum(alpha * mid, 255) >= ref).mean() < coverage:
+            lo = mid
+        else:
+            hi = mid
+    a[:, 3] = np.minimum(alpha * hi, 255).astype(np.uint8)
+    return a.tobytes()
+
+
+def write_alpha_tex(path, w, h, rgba, ref=128):
+    """DXT3 with a mip chain (model textures with alpha, such as hair cards), each level keeping
+    the share of texels a test against `ref` lets through. Needs numpy."""
+    np = _numpy()
+    if np is None:
+        raise RuntimeError("write_alpha_tex needs numpy (run with: uv run --with numpy)")
+    levels = [(w, h, rgba)]
+    coverage = (np.frombuffer(rgba, np.uint8)[3::4] >= ref).mean()
+    while min(levels[-1][0], levels[-1][1]) > 8:
+        nw, nh, data = _downsample_numpy(np, *levels[-1])
+        levels.append((nw, nh, _keep_coverage(np, data, coverage, ref)))
+    avg = np.frombuffer(rgba, np.uint8).reshape(-1, 4).mean(0).astype(int)
+    argb = int(avg[3]) << 24 | int(avg[0]) << 16 | int(avg[1]) << 8 | int(avg[2])
+    header = b"ZTEX" + struct.pack("<8I", 0, FORMAT_DXT3, w, h, len(levels), w, h, argb)
+    with open(path, "wb") as f:
+        f.write(header + b"".join(_encode_dxt3_numpy(np, *lv) for lv in reversed(levels)))
+
+
 def write_tex(path, w, h, rgba, alpha=False):
     """DXT1 with mipmaps (model textures), or with alpha=True one DXT3 level (HUD textures)."""
     np = None if alpha else _numpy()

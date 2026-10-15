@@ -1,6 +1,6 @@
 """Download Union 1.0m and install it into a Gothic 1 folder.
 
-Union (by Gratt and the Union team) is what loads the CJMovement plugin. A Steam or GOG Gothic 1
+Union (by Gratt and the Union team) is what loads the mashups' plugins. A Steam or GOG Gothic 1
 needs nothing else: this fetches "Union 1.0m.7z" from Gratt's own archive on GitHub
 (Gratt-5r2/gothic-fix-archive), checks its SHA-256, and copies it in the way that archive's notes
 say for Gothic 1: Data\\Union.vdf, the System files, and the BinkMss DLLs into System as well.
@@ -39,7 +39,7 @@ def installed(gothic):
 
 
 def download(url, path):
-    request = urllib.request.Request(url, headers={"User-Agent": "gothic-gtasa installer"})
+    request = urllib.request.Request(url, headers={"User-Agent": "gothic-game-mixing installer"})
     with urllib.request.urlopen(request, timeout=60) as response, open(path, "wb") as f:
         shutil.copyfileobj(response, f)
 

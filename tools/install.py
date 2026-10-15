@@ -1,24 +1,26 @@
-"""Install the GTA San Andreas CJ mod into Gothic 1 from your own game files.
+"""Install a Gothic 1 mashup from your own game files.
 
-Nothing of either game ships with the mod: this runs the make_cj_*.py tools, which read your
-GTA San Andreas (classic PC) install and write CJ, his animations, voice, weapons, HUD, radar and
-motorbike into your Gothic folder. Then it sets Gothic.ini up for GTA's keys and copies the
-CJMovement plugin into Data.
+Gothic 1 is the base of every mashup. You choose the game it is mashed up with, which brings its
+hero, mechanics and content into Gothic:
+  gta       GTA San Andreas (classic PC): play as CJ          mashups\\gta
+  witcher   The Witcher 3: Wild Hunt: play as Geralt          mashups\\witcher
 
-  python install.py --gta "D:\\Games\\GTA San Andreas" [--gothic DIR] [--plugin CJMovement.vdf] [--install-union]
+Nothing of either game ships with the mod: the mashup's tools read your own copy of that game and
+write into your Gothic folder. Then this sets Gothic.ini up for the mashup's plugin and copies the
+plugin into Data.
+
+  python install.py --game gta --game-dir "D:\\Games\\GTA San Andreas" [--gothic DIR] [--plugin CJMovement.vdf] [--install-union]
+  python install.py --game witcher --game-dir "D:\\Games\\The Witcher 3" [--lang pl] [...]
   python install.py --uninstall [--gothic DIR]
 
-Steps (each tool can also be run on its own, see its usage):
-  union.py            Union 1.0m, downloaded and installed if it's missing and you agree (--install-union)
-  make_cj_pistol.py   pistol, rocket launcher and dildo: models, sounds, the items in Gothic.dat
-  make_cj_hud.py      HUD textures (fonts, weapon icons, crosshairs, radar sprites)
-  make_cj_radar.py    the radar's map from Gothic's world map (writes the radar bounds into Gothic.ini)
-  make_cj_bike.py     the motorbike (Data\\CJ_Bike.vdf, system\\CJBike.ini)
-  make_cj_voice.py    CJ's voice for the hero's lines (Data\\CJ_Voice.vdf; needs ffmpeg on PATH)
-  make_cj_model.py    CJ's model and animations, and the hero in Gothic.dat pointed at him
+--gta DIR is short for --game gta --game-dir DIR, and --w3 DIR for --game witcher --game-dir DIR.
 
-Gothic.dat and Gothic.ini are backed up first (Gothic.dat.orig, Gothic.ini.before-cj);
---uninstall puts both back and removes the mod's files.
+  union.py   Union 1.0m, downloaded and installed if it's missing and you agree (--install-union)
+  then the mashup's own steps: see mashups\\<game>\\tools\\mashup_<game>.py
+
+A Gothic folder holds one mashup at a time: installing one removes the other first, as --uninstall
+does. Gothic.dat and Gothic.ini are backed up before anything changes (Gothic.dat.orig and the
+mashup's Gothic.ini.before-*); --uninstall puts both back and removes the mashup's files.
 """
 import argparse
 import glob
@@ -31,72 +33,18 @@ import union
 DEFAULT_GOTHIC = r"C:\Program Files (x86)\Steam\steamapps\common\Gothic"
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.dirname(HERE)
-PLUGIN_BUILD = os.path.join(REPO, "plugin", "CJMovement", "out", "build", "G1-Release", "vdf", "CJMovement.vdf")
-INI_BACKUP = "Gothic.ini.before-cj"
+INSTALLER_EXE = "GothicMashupInstaller.exe"
 
-# Gothic's own key bindings, set to GTA's where Gothic reads them itself (dialogue, menus): F is
-# also the action key, Left Alt walks, Left Shift jumps, C sneaks, X is the weapon key, F and S
-# leave the look and status keys. In play the CJMovement plugin answers every movement and combat
-# key from GTA's controls anyway.
-KEYS = {
-    "keyAction": "1d002100",
-    "keySlow": "3800",
-    "keySMove": "2a00",
-    "keyWeapon": "2d00",
-    "keySneak": "2e003700",
-    "keyLookFP": "5300",
-    "keyShowStatus": "3000",
-}
+# each mashup's own tools (mashups\<game>\tools), next to Gothic's side here; the GUI installer has
+# them all built in
+for _tools in sorted(glob.glob(os.path.join(REPO, "mashups", "*", "tools"))):
+    if _tools not in sys.path:
+        sys.path.append(_tools)
 
-# [CJMOVEMENT]: the plugin's settings with their defaults (see plugin/CJMovement/src/Plugin.ipp);
-# only missing ones are added, so your own values stay.
-SETTINGS = [
-    ("turnRate", "450", "CJ's turn speed in degrees per second"),
-    ("mouseSpeed", "0.25", "camera degrees per mouse unit"),
-    ("invertMouseY", "0", "1 = inverted mouse look"),
-    ("camDistance", "300", "follow camera distance (cm)"),
-    ("camHeight", "50", "height of the point the camera looks at (cm)"),
-    ("camSmooth", "0.08", "seconds the camera takes to catch up with CJ"),
-    ("gtaHud", "1", "GTA's HUD instead of Gothic's bars"),
-    ("debugLog", "0", "1 = write CJMovement.log in the Gothic folder"),
-    ("fistDamage", "1", "punch damage, share of GTA's"),
-    ("runSpeed", "0.75", "run speed, share of GTA's"),
-    ("sprintSpeed", "0.7", "sprint speed, share of GTA's"),
-    ("sprintAccel", "0.8", "seconds from running to full sprint"),
-    ("sprintDecel", "0.5", "seconds from full sprint back to running"),
-    ("gunDamage", "1", "pistol damage, share of GTA's"),
-    ("aimDistance", "150", "aiming camera distance (cm)"),
-    ("aimSide", "40", "aiming camera's shift to the right (cm)"),
-    ("aimHeight", "75", "aiming camera's look height (cm)"),
-    ("startPistol", "1", "give CJ the pistol on a new game or load if he has none"),
-    ("startRocket", "1", "give CJ the rocket launcher if he has none"),
-    ("rocketRadius", "500", "rocket blast radius (cm)"),
-    ("startDildo", "1", "give CJ the dildo if he has none"),
-    ("fleeRadius", "2000", "how near (cm) enemies run from the drawn dildo"),
-    ("slopeWalk", "60", "steepest ground (degrees) CJ walks on"),
-    ("slopeSlide", "70", "where Gothic's steeper slide starts (degrees)"),
-    ("maxFrameTime", "40", "longest step (ms) one frame may take with GTA controls"),
-    ("radar", "1", "GTA's radar"),
-    ("radarRange", "18000", "radar range (cm) from its centre to its rim"),
-    ("gtaClock", "1", "Gothic's day at GTA's pace"),
-    ("wastedCam", "1", "San Andreas's camera when CJ dies"),
-    ("wastedHeight", "1500", "how high (cm) the wasted camera rises"),
-    ("bike", "1", "GTA's motorbike next to CJ"),
-    ("bikeCamDistance", "450", "camera distance behind the bike (cm)"),
-    ("bikeGrip", "1", "tyre grip, share of GTA's"),
-    ("bikeSpeed", "0.6", "bike top speed and pull, share of GTA's"),
-    ("lightFlashes", "1", "shots and explosions light up their surroundings"),
-    ("bikeLight", "1", "the bike's headlight at night"),
-    ("crashDamage", "1", "how much a bike crash hurts CJ, share of the plugin's (0 = never)"),
-]
+import mashup_gta  # noqa: E402
+import mashup_witcher  # noqa: E402
 
-# what the tools write into the Gothic folder (for --uninstall)
-MOD_FILES = [
-    r"Data\CJMovement.vdf", r"Data\CJ_Weapons.vdf", r"Data\CJ_Bike.vdf", r"Data\CJ_Voice.vdf",
-    r"system\CJBike.ini", r"Start Gothic with CJ.bat",
-    r"_work\DATA\ANIMS\CJ*.ASC", r"_work\DATA\ANIMS\CJ*.MDS", r"_work\DATA\ANIMS\_COMPILED\CJ*",
-    r"_work\DATA\TEXTURES\_COMPILED\CJ_*", r"_work\DATA\MESHES\CJ",
-]
+MASHUPS = {m.NAME: m for m in (mashup_gta, mashup_witcher)}
 
 
 def gothic_paths(gothic):
@@ -104,7 +52,25 @@ def gothic_paths(gothic):
             os.path.join(gothic, "system", "Gothic.ini"))
 
 
-def check(gothic, gta, install_union=False):
+def installed_mashups(gothic):
+    """The mashups in this Gothic folder: their plugin is in Data, or their Gothic.ini backup in system."""
+    return [m for m in MASHUPS.values()
+            if os.path.exists(os.path.join(gothic, "Data", m.PLUGIN + ".vdf"))
+            or os.path.exists(os.path.join(gothic, "system", m.INI_BACKUP))]
+
+
+def plugin_build(mashup):
+    """Where plugin\\build.bat puts the mashup's plugin."""
+    return os.path.join(REPO, "plugin", "out", "build", "G1-Release", mashup.NAME, "vdf", mashup.PLUGIN + ".vdf")
+
+
+def find_plugin(mashup, folder=HERE):
+    """The mashup's plugin next to the installer (a release has them there) or as plugin\\build.bat built it."""
+    return next((p for p in (os.path.join(folder, mashup.PLUGIN + ".vdf"), plugin_build(mashup))
+                 if os.path.exists(p)), None)
+
+
+def check(gothic, game, game_dir, install_union=False, lang=None):
     problems = []
     if not os.path.exists(os.path.join(gothic, "system", "GothicMod.exe")):
         problems.append("system\\GothicMod.exe is missing: choose the Gothic 1 folder (the one with system and Data in "
@@ -118,19 +84,11 @@ def check(gothic, gta, install_union=False):
         problems.append("Union is not installed, or Steam put Gothic's own system\\Shw32.dll back over it (it does when "
                         "it updates or verifies the game): run again with --install-union to download and install "
                         f"Union 1.0m, or install it yourself ({union.UNION_THREAD})")
-    if gta is not None:
-        for need in (r"models\gta3.img", r"anim\ped.ifp", r"audio\SFX", r"data\handling.cfg"):
-            if not os.path.exists(os.path.join(gta, need)):
-                problems.append(f"{need} not found under --gta: it must be the classic PC GTA San Andreas folder")
-    try:
-        import PIL  # noqa: F401  (make_cj_radar.py)
-    except ImportError:
-        problems.append("Pillow is missing: pip install pillow")
-    return problems
+    return problems + MASHUPS[game].check(game_dir, lang)
 
 
 def run(tool, *args):
-    """Run a make_cj_*.py tool's main() in this process: the GUI installer is one exe with no python.exe to
+    """Run a mashup tool's main() in this process: the GUI installer is one exe with no python.exe to
     start them with."""
     print(f"\n== {tool.__name__}.py {' '.join(args)}", flush=True)
     argv = sys.argv
@@ -141,103 +99,98 @@ def run(tool, *args):
         sys.argv = argv
 
 
-def set_up_ini(path):
+def set_up_ini(path, mashup):
     text = open(path, "rb").read().decode("latin-1")
     nl = "\r\n" if "\r\n" in text else "\n"  # keep the file's own line ends (Steam's is CRLF)
     lines = text.split(nl)
-    for key, value in KEYS.items():
+    for key, value in mashup.KEYS.items():
         for i, line in enumerate(lines):
             if line.split("=", 1)[0].strip() == key:
                 lines[i] = f"{key}={value}"
-    start = next((i for i, l in enumerate(lines) if l.strip().upper() == "[CJMOVEMENT]"), None)
+    section = f"[{mashup.INI_SECTION}]"
+    start = next((i for i, l in enumerate(lines) if l.strip().upper() == section), None)
     if start is None:
-        lines += ["", "[CJMOVEMENT]"]
+        lines += ["", section]
         start = len(lines) - 1
     end = next((i for i in range(start + 1, len(lines)) if lines[i].strip().startswith("[")), len(lines))
     have = {l.split("=", 1)[0].strip() for l in lines[start + 1:end] if "=" in l}
     added = []
-    for key, value, note in SETTINGS:
+    for key, value, note in mashup.SETTINGS:
         if key not in have:
             added += [f"{key}={value}", f"; ... {note}"]
     lines[end:end] = added
     open(path, "wb").write(nl.join(lines).encode("latin-1"))
-    print(f"Gothic.ini: GTA's keys set, {len(added) // 2} [CJMOVEMENT] settings added")
+    keys = f"Gothic's keys set to {mashup.TITLE}'s, " if mashup.KEYS else ""
+    print(f"Gothic.ini: {keys}{len(added) // 2} {section} settings added")
+
+
+def write_starters(gothic, mashup):
+    """The mashup's start files, each checking first that Union is still there to load the plugin."""
+    for name, (notes, start) in mashup.starters().items():
+        open(os.path.join(gothic, name), "w", newline="").write(
+            "@echo off\r\n"
+            + notes
+            + "rem Union loads the plugin: Steam puts Gothic's own Shw32.dll back when it updates the game\r\n"
+            'findstr /m /c:"Union.patch" "%~dp0system\\Shw32.dll" >nul || goto nounion\r\n'
+            'cd /d "%~dp0system"\r\n'
+            + start
+            + "exit /b\r\n"
+            ":nounion\r\n"
+            "echo Union is not active: Steam put Gothic's own system\\Shw32.dll back (it does that when it\r\n"
+            f"echo updates or verifies the game). Run {INSTALLER_EXE} again, it reinstalls Union.\r\n"
+            "pause\r\n")
 
 
 def install(args):
-    gothic, gta = args.gothic, args.gta
-    problems = check(gothic, gta, args.install_union)
+    mashup, gothic = MASHUPS[args.game], args.gothic
+    problems = check(gothic, args.game, args.game_dir, args.install_union, args.lang)
     if problems:
         sys.exit("Can't install:\n  - " + "\n  - ".join(problems))
+    for other in installed_mashups(gothic):
+        if other is not mashup:
+            print(f"{other.HERO} ({other.TITLE}) is installed here: removing him first, a Gothic folder holds one "
+                  "mashup at a time")
+            uninstall(gothic, other)
     dat, ini = gothic_paths(gothic)
     if not os.path.exists(dat + ".orig"):
         shutil.copy2(dat, dat + ".orig")
-    if not os.path.exists(os.path.join(os.path.dirname(ini), INI_BACKUP)):
-        shutil.copy2(ini, os.path.join(os.path.dirname(ini), INI_BACKUP))
+    if not os.path.exists(os.path.join(os.path.dirname(ini), mashup.INI_BACKUP)):
+        shutil.copy2(ini, os.path.join(os.path.dirname(ini), mashup.INI_BACKUP))
     if args.install_union and not union.installed(gothic):
         union.install(gothic)
-    # before the tools: make_cj_radar.py writes the radar's bounds into [CJMOVEMENT]
-    set_up_ini(ini)
+    # before the tools, which may add to the mashup's section (make_cj_radar.py writes the radar's bounds)
+    set_up_ini(ini, mashup)
 
-    # imported here, after check(), so a missing Pillow is reported instead of raised
-    import make_cj_bike
-    import make_cj_hud
-    import make_cj_model
-    import make_cj_pistol
-    import make_cj_radar
-    import make_cj_voice
+    mashup.build(args, run)
 
-    common = ["--gta", gta, "--gothic", gothic]
-    run(make_cj_pistol, *common)
-    run(make_cj_hud, *common)
-    run(make_cj_radar, "--gothic", gothic)
-    run(make_cj_bike, *common)
-    if args.skip_voice:
-        print("\n(voice skipped)")
-    elif shutil.which("ffmpeg"):
-        run(make_cj_voice, *common)
-    else:
-        print("\nffmpeg is not on PATH: CJ's voice is skipped (install ffmpeg and run make_cj_voice.py later)")
-    run(make_cj_model, *common)
-
-    plugin = args.plugin or next((p for p in (os.path.join(HERE, "CJMovement.vdf"), PLUGIN_BUILD) if os.path.exists(p)), None)
+    name = mashup.PLUGIN + ".vdf"
+    plugin = args.plugin or find_plugin(mashup)
     if plugin and os.path.exists(plugin):
-        shutil.copy2(plugin, os.path.join(gothic, "Data", "CJMovement.vdf"))
-        print(f"plugin: {plugin} -> Data\\CJMovement.vdf")
+        shutil.copy2(plugin, os.path.join(gothic, "Data", name))
+        print(f"plugin: {plugin} -> Data\\{name}")
     else:
-        print("\nThe CJMovement plugin is not installed yet: build it (plugin\\CJMovement\\build.bat) or download "
-              "CJMovement.vdf from the releases, then run this again with --plugin <path> or copy it into Gothic\\Data.")
-    starter = os.path.join(gothic, "Start Gothic with CJ.bat")
-    open(starter, "w", newline="").write(
-        "@echo off\r\n"
-        "rem -zautoconvertdata lets Gothic compile CJ's model and animations the first time they are needed;\r\n"
-        "rem the path is this folder's own, so the Gothic folder can be moved or copied to another PC\r\n"
-        "rem Union loads the plugin: Steam puts Gothic's own Shw32.dll back when it updates the game\r\n"
-        'findstr /m /c:"Union.patch" "%~dp0system\\Shw32.dll" >nul || goto nounion\r\n'
-        'cd /d "%~dp0system"\r\n'
-        'start "" GothicMod.exe -zautoconvertdata\r\n'
-        "exit /b\r\n"
-        ":nounion\r\n"
-        "echo Union is not active: Steam put Gothic's own system\\Shw32.dll back (it does that when it\r\n"
-        "echo updates or verifies the game). Run GothicGTAInstaller.exe again, it reinstalls Union.\r\n"
-        "pause\r\n")
-    print(f"\nDone. Start the game with \"{starter}\" (the first start compiles CJ and takes a while).")
+        print(f"\nThe {mashup.PLUGIN} plugin is not installed yet: build it (plugin\\build.bat) or download {name} from "
+              f"the releases, then run this again with --plugin <path> or copy it into Gothic\\Data.")
+    write_starters(gothic, mashup)
+    starter = next(iter(mashup.starters()))
+    print(f"\nDone. Start the game with \"{os.path.join(gothic, starter)}\" (the first start compiles "
+          f"{mashup.HERO} and takes a while).")
 
 
-def uninstall(args):
-    gothic = args.gothic
+def uninstall(gothic, mashup):
+    print(f"\n== removing {mashup.HERO} ({mashup.TITLE})")
     dat, ini = gothic_paths(gothic)
     if os.path.exists(dat + ".orig"):
         shutil.copy2(dat + ".orig", dat)
         os.remove(dat + ".orig")
         print("Gothic.dat restored")
-    backup = os.path.join(os.path.dirname(ini), INI_BACKUP)
+    backup = os.path.join(os.path.dirname(ini), mashup.INI_BACKUP)
     if os.path.exists(backup):
         shutil.copy2(backup, ini)
         os.remove(backup)
         print("Gothic.ini restored")
     removed = 0
-    for pattern in MOD_FILES:
+    for pattern in mashup.MOD_FILES:
         for path in glob.glob(os.path.join(gothic, pattern)):
             if os.path.isdir(path):
                 shutil.rmtree(path)
@@ -245,25 +198,49 @@ def uninstall(args):
                 os.remove(path)
             removed += 1
     print(f"{removed} mod files removed")
-    if os.path.isdir(os.path.join(gothic, "system", union.BACKUP_DIR)):
-        print(f"Union stays installed (the files it replaced are in system\\{union.BACKUP_DIR})")
 
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--gta", help="GTA San Andreas (classic PC) install folder")
+    parser.add_argument("--game", choices=sorted(MASHUPS),
+                        help="the game Gothic is mashed up with: " + ", ".join(f"{m.NAME} ({m.TITLE}, play as {m.HERO})"
+                                                                              for m in MASHUPS.values()))
+    parser.add_argument("--game-dir", help="that game's install folder")
+    parser.add_argument("--gta", metavar="DIR", help="short for --game gta --game-dir DIR")
+    parser.add_argument("--w3", metavar="DIR", help="short for --game witcher --game-dir DIR")
     parser.add_argument("--gothic", default=DEFAULT_GOTHIC, help="Gothic 1 install folder")
-    parser.add_argument("--plugin", help="CJMovement.vdf to install (default: a built or downloaded one next to the tools)")
+    parser.add_argument("--plugin", help="the mashup's plugin to install, CJMovement.vdf or Witcher.vdf (default: one "
+                                         "next to the installer, or the one plugin\\build.bat built)")
+    parser.add_argument("--lang", help="The Witcher 3: the dub Geralt speaks: pl (default), en, de, ... "
+                                       "(<lang>pc.w3speech)")
     parser.add_argument("--skip-voice", action="store_true", help="keep Gothic's hero voice")
     parser.add_argument("--install-union", action="store_true",
                         help="if Union is missing, download Union 1.0m (Gratt's GitHub archive) and install it")
-    parser.add_argument("--uninstall", action="store_true", help="restore Gothic.dat and Gothic.ini, remove the mod's files")
+    parser.add_argument("--uninstall", action="store_true",
+                        help="restore Gothic.dat and Gothic.ini and remove the installed mashup's files")
     args = parser.parse_args(argv)
+    for flag, game in (("gta", "gta"), ("w3", "witcher")):
+        if getattr(args, flag):
+            if args.game_dir or args.game not in (None, game):
+                parser.error(f"--{flag} DIR is short for --game {game} --game-dir DIR: give one or the other")
+            args.game, args.game_dir = game, getattr(args, flag)
+
     if args.uninstall:
-        uninstall(args)
+        installed = installed_mashups(args.gothic)
+        if args.game and MASHUPS[args.game] not in installed:
+            sys.exit(f"{MASHUPS[args.game].HERO} ({MASHUPS[args.game].TITLE}) is not installed in {args.gothic}")
+        if not installed:
+            sys.exit(f"No mashup is installed in {args.gothic}")
+        for mashup in [MASHUPS[args.game]] if args.game else installed:
+            uninstall(args.gothic, mashup)
+        if os.path.isdir(os.path.join(args.gothic, "system", union.BACKUP_DIR)):
+            print(f"Union stays installed (the files it replaced are in system\\{union.BACKUP_DIR})")
         return
-    if not args.gta:
-        parser.error("--gta is required (your GTA San Andreas folder)")
+    if not args.game:
+        parser.error("choose the game: --game gta or --game witcher (with --game-dir), or --gta DIR or --w3 DIR")
+    if not args.game_dir:
+        parser.error(f"--game-dir is required: {MASHUPS[args.game].GAME_FOLDER}")
+    args.lang = args.lang or MASHUPS[args.game].DEFAULT_LANG
     if not args.install_union and not union.installed(args.gothic) and sys.stdin and sys.stdin.isatty():
         answer = input("Union is not installed in this Gothic folder (or Steam put Gothic's own DLLs back over it). "
                        "Download Union 1.0m and install it now? [y/N] ")

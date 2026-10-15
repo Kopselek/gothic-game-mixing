@@ -50,7 +50,7 @@ function(generate_ipp_translation_units)
 
             # Generate the .cpp file
             configure_file(
-                    ${CMAKE_CURRENT_SOURCE_DIR}/src/IppFileTemplate.in
+                    ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/../src/IppFileTemplate.in
                     ${out}
                     @ONLY
             )

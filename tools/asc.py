@@ -100,10 +100,10 @@ def _mesh(keyword, verts, faces, uvs, uv_faces):
     return "".join(out)
 
 
-HEADER = ("*3DSMAX_ASCIIEXPORT\t110\n*COMMENT \"gothic-gtasa\"\n*SCENE {{\n\t*SCENE_FILENAME \"{0}\"\n"
+HEADER = ("*3DSMAX_ASCIIEXPORT\t110\n*COMMENT \"gothic-game-mixing\"\n*SCENE {{\n\t*SCENE_FILENAME \"{0}\"\n"
           "\t*SCENE_FIRSTFRAME 0\n\t*SCENE_LASTFRAME 100\n\t*SCENE_FRAMESPEED 25\n\t*SCENE_TICKSPERFRAME 192\n"
           "\t*SCENE_BACKGROUND_STATIC 0\t0\t0\n\t*SCENE_AMBIENT_STATIC 0.2\t0.2\t0.2\n}}\n"
-          "*MATERIAL_LIST {{\n\t*MATERIAL_COUNT 1\n{1}}}\n")
+          "*MATERIAL_LIST {{\n\t*MATERIAL_COUNT {2}\n{1}}}\n")
 
 
 def axis_angle(rows):
@@ -156,7 +156,7 @@ def helper_block(name, parent, rows, pos, animation=None):
 def write_animation(path, helper_blocks, frames):
     """Animation source: every skeleton node, animated ones carrying world-space samples."""
     name = path.replace("\\", "/").rsplit("/", 1)[-1]
-    header = (f"*3DSMAX_ASCIIEXPORT\t110\n*COMMENT \"gothic-gtasa\"\n*SCENE {{\n\t*SCENE_FILENAME \"{name}\"\n"
+    header = (f"*3DSMAX_ASCIIEXPORT\t110\n*COMMENT \"gothic-game-mixing\"\n*SCENE {{\n\t*SCENE_FILENAME \"{name}\"\n"
               f"\t*SCENE_FIRSTFRAME 0\n\t*SCENE_LASTFRAME {frames - 1}\n\t*SCENE_FRAMESPEED 25\n"
               "\t*SCENE_TICKSPERFRAME 192\n\t*SCENE_BACKGROUND_STATIC 0\t0\t0\n\t*SCENE_AMBIENT_STATIC 0.2\t0.2\t0.2\n}\n")
     with open(path, "w", newline="\r\n") as f:
@@ -165,18 +165,41 @@ def write_animation(path, helper_blocks, frames):
 
 def write_softskin(path, helper_blocks, textures, verts, faces, uvs, uv_faces, weights, mesh_name="zm_Skin"):
     """Soft-skinned body: skeleton helpers, one mesh in world space, per-vertex [(bone, weight)]."""
+    write_softskin_meshes(path, helper_blocks, textures, [(mesh_name, verts, faces, uvs, uv_faces, weights)])
+
+
+def write_softskin_meshes(path, helper_blocks, textures, meshes, separate=False):
+    """Soft-skinned body made of several meshes, each its own *GEOMOBJECT with its
+    *MESH_SOFTSKINVERTS: meshes = [(name, verts, faces, uvs, uv_faces, weights)].
+
+    Gothic 1 renders one soft skin only below 2048 positions (zCProgMeshProto::RenderProgMesh
+    returns at posList count >= 0x800, and zCMeshSoftSkin::RenderSoftSkin writes every skinned
+    position into the static s_posCacheList without a bound, so a bigger one corrupts memory and
+    crashes); a model takes a list of soft skins (zCModelMeshLib::meshSoftSkinList).
+
+    Gothic's ASC loader reads no *MESH_MTLID (GothicMod.exe has no such string): every face of a
+    GEOMOBJECT gets the first texture of the material its *MATERIAL_REF names, so a Multi material
+    painted all of Geralt with his face. With separate=True every texture is a material of its
+    own in the MATERIAL_LIST and each mesh names its one material as a seventh item:
+    (name, verts, faces, uvs, uv_faces, weights, material index)."""
     name = path.replace("\\", "/").rsplit("/", 1)[-1]
-    out = [HEADER.format(name, _materials(textures))]
+    if separate:
+        mats = "".join(_material(i, t, "\t").replace("*SUBMATERIAL", "*MATERIAL", 1) for i, t in enumerate(textures))
+        out = [HEADER.format(name, mats, len(textures))]
+    else:
+        out = [HEADER.format(name, _materials(textures), 1)]
     out += [b if b.endswith("\n") else b + "\n" for b in helper_blocks]
-    out.append(f'*GEOMOBJECT {{\n\t*NODE_NAME "{mesh_name}"\n\t*NODE_PARENT "Bip01"\n')
-    out.append(IDENTITY_TM.format(mesh_name))
-    out.append("\t*MATERIAL_REF 0\n")
-    out.append(_mesh("MESH_SOFTSKIN", verts, faces, uvs, uv_faces))
-    out.append("}\n")
-    out.append(f"*MESH_SOFTSKINVERTS {{\n{mesh_name}\n{len(verts)}\n")
-    for links in weights:
-        out.append(f"{len(links)}\t" + "\t".join(f'"{bone}"\t{_fmt(w)}' for bone, w in links) + "\n")
-    out.append("}\n")
+    for mesh in meshes:
+        mesh_name, verts, faces, uvs, uv_faces, weights = mesh[:6]
+        out.append(f'*GEOMOBJECT {{\n\t*NODE_NAME "{mesh_name}"\n\t*NODE_PARENT "Bip01"\n')
+        out.append(IDENTITY_TM.format(mesh_name))
+        out.append(f"\t*MATERIAL_REF {mesh[6] if separate else 0}\n")
+        out.append(_mesh("MESH_SOFTSKIN", verts, faces, uvs, uv_faces))
+        out.append("}\n")
+        out.append(f"*MESH_SOFTSKINVERTS {{\n{mesh_name}\n{len(verts)}\n")
+        for links in weights:
+            out.append(f"{len(links)}\t" + "\t".join(f'"{bone}"\t{_fmt(w)}' for bone, w in links) + "\n")
+        out.append("}\n")
     with open(path, "w", newline="\r\n") as f:
         f.write("".join(out))
 
@@ -184,7 +207,7 @@ def write_softskin(path, helper_blocks, textures, verts, faces, uvs, uv_faces, w
 def write_mesh(path, textures, verts, faces, uvs, uv_faces, mesh_name="zm_Morph"):
     """Static mesh in its own local space (a morph-mesh head is placed on 'Bip01 Head')."""
     name = path.replace("\\", "/").rsplit("/", 1)[-1]
-    out = [HEADER.format(name, _materials(textures)),
+    out = [HEADER.format(name, _materials(textures), 1),
            f'*GEOMOBJECT {{\n\t*NODE_NAME "{mesh_name}"\n', IDENTITY_TM.format(mesh_name), "\t*MATERIAL_REF 0\n",
            _mesh("MESH", verts, faces, uvs, uv_faces), "}\n"]
     with open(path, "w", newline="\r\n") as f:

@@ -17,9 +17,12 @@ import random
 import re
 import struct
 import subprocess
+import sys
 import tempfile
 from concurrent.futures import ThreadPoolExecutor
 
+# Gothic's side (asc, tex, vdf, daedalus, ...) is shared by every mashup: <repo>/tools
+sys.path.insert(1, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "..", "tools"))
 from sa_audio import BANK_PAIN_CJ, BANKS_SPEECH_CJ, SfxBanks
 from vdf import VdfReader, write_vdf
 

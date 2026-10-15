@@ -1,14 +1,19 @@
-# Gothic × GTA San Andreas
+# Gothic Game Mixing
 
-Play **Gothic 1** as **CJ** from GTA San Andreas. You get his model, animations and voice, plus
-GTA's controls, camera and HUD, GTA weapons, and the Sanchez motorbike.
+**Gothic 1** mashed up with other games. Gothic 1 is always the base: you play its world and its
+story. The game you combine it with brings its hero, controls, mechanics and content. Choose one:
 
-This repository contains **no game files** from GTA San Andreas or Gothic. The installer reads
-**your own** GTA San Andreas installation and builds CJ, his animations, sounds, textures and the
-bike straight into **your own** Gothic folder. You need legal copies of both games.
+| Combine Gothic 1 with | You play as | What it brings | Details |
+| --- | --- | --- | --- |
+| **GTA San Andreas** | CJ | GTA's controls, camera and HUD, a radar, GTA weapons, the Sanchez motorbike, CJ's voice | [mashups/gta](mashups/gta/README.md) |
+| **The Witcher 3** | Geralt | The Witcher 3's controls and camera, sword fighting, signs, Geralt's face and voice | [mashups/witcher](mashups/witcher/README.md) |
 
-> Not affiliated with or endorsed by Rockstar Games, Take-Two Interactive, Piranha Bytes or
-> THQ Nordic. All game content belongs to its owners.
+This repository contains **no game files** from Gothic, GTA San Andreas or The Witcher 3. The
+installer reads **your own** copy of the game you choose and builds its hero and content straight
+into **your own** Gothic folder. You need legal copies of Gothic 1 and of that game.
+
+> Not affiliated with or endorsed by Piranha Bytes, THQ Nordic, Rockstar Games, Take-Two
+> Interactive or CD PROJEKT RED. All game content belongs to its owners.
 
 ## Install
 
@@ -18,176 +23,172 @@ bike straight into **your own** Gothic folder. You need legal copies of both gam
   [Microsoft Visual C++ Redistributable (x86)](https://aka.ms/vs/17/release/vc_redist.x86.exe).
   Most PCs already have it.
 * **Gothic 1** from Steam or GOG. A disk edition needs the Gothic 1 Player Kit 1.08k first.
-* **GTA San Andreas, classic PC version.** The Definitive Edition won't work: the installer needs
-  `models\gta3.img`, `anim\ped.ifp`, `audio\SFX` and `data\handling.cfg`.
-* Optional: **ffmpeg** for CJ's voice (see [Troubleshooting](#troubleshooting)).
+* The game you combine it with, installed while you install the mod:
+  * **GTA San Andreas, classic PC version.** The Definitive Edition won't work: the installer
+    needs `models\gta3.img`, `anim\ped.ifp`, `audio\SFX` and `data\handling.cfg`.
+  * **The Witcher 3: Wild Hunt** for PC (Steam or GOG). The mod was made and tested with the
+    next-gen version (4.0 and later). The installer needs `content\content0` with its bundles and
+    `texture.cache`.
+* Optional: **ffmpeg** for the hero's voice (see [Troubleshooting](#troubleshooting)).
 
 You don't need Python. You also don't need to install Union yourself, because the installer offers
 to do it.
 
 ### Steps
 
-1. Download **`GothicGTAInstaller.zip`** from the
-   [latest release](https://github.com/Kopselek/gothic-gtasa/releases/latest).
-2. Extract **both** files, `GothicGTAInstaller.exe` and `CJMovement.vdf`, into the same folder.
-3. Run `GothicGTAInstaller.exe`.
-4. Pick your **GTA San Andreas** folder and your **Gothic 1** folder, then click **Install**.
-   * Steam usually has Gothic in `C:\Program Files (x86)\Steam\steamapps\common\Gothic`.
-   * Choose the folder that contains `system` and `Data`.
-5. If the installer says **Union** is missing, click **Yes**. Union is the loader that runs the
-   mod's plugin. The installer downloads Union 1.0m from its author's archive
+1. Download **`GothicMashupInstaller.zip`** from the
+   [latest release](https://github.com/Kopselek/gothic-game-mixing/releases/latest).
+2. Extract **all** its files (`GothicMashupInstaller.exe`, `CJMovement.vdf` and `Witcher.vdf`)
+   into the same folder.
+3. Run `GothicMashupInstaller.exe`.
+4. Under **Combine Gothic 1 with**, choose **GTA San Andreas** or **The Witcher 3**.
+5. Pick that game's folder and your **Gothic 1** folder. The installer needs both.
+   * Steam usually has them in `C:\Program Files (x86)\Steam\steamapps\common\`, for example
+     `...\common\The Witcher 3` and `...\common\Gothic`.
+   * For Gothic, choose the folder that contains `system` and `Data`. For GTA San Andreas, the one
+     with `models` and `anim`. For The Witcher 3, the one with `bin` and `content`.
+6. For The Witcher 3, pick the language Geralt speaks (the dubs your copy has, Polish by default).
+7. Click **Install**. If the installer says **Union** is missing, click **Yes**. Union is the
+   loader that runs the mod's plugin. The installer downloads Union 1.0m from its author's archive
    ([Gratt-5r2/gothic-fix-archive](https://github.com/Gratt-5r2/gothic-fix-archive)), checks the
    file and installs it.
-6. Wait for "Installation finished". It takes a few minutes.
+8. Wait for "Installation finished". GTA San Andreas takes a few minutes. The Witcher 3 takes
+   several, most of them for Geralt's voice in the dialogues.
+
+A Gothic folder holds **one mashup at a time**. If the other one is already installed, the
+installer asks first, then removes it as an uninstall would, and installs the one you chose. Run
+it again to switch back.
 
 ### Start the game
 
-Start the game with **`Start Gothic with CJ.bat`** in your Gothic folder, not with Steam's Play
-button. The file runs `system\GothicMod.exe -zautoconvertdata`.
+Start the game with the start file the installer puts into your Gothic folder, not with Steam's
+Play button:
 
-* The **first start takes longer**, because Gothic compiles CJ's model and animations.
-* In the **first session**, CJ may hop or fall on slopes while the game is still compiling and
-  caching. That goes away from the next start on.
+| Mashup | Start file |
+| --- | --- |
+| GTA San Andreas | `Start Gothic with CJ.bat` |
+| The Witcher 3 | `Start Gothic as Geralt.bat`, or `Start Gothic as Geralt (window).bat` for a window |
+
+The **first start takes longer**, because Gothic compiles the hero's model and animations. Each
+mashup's README says more.
 
 ### What the installer changes
 
-* It backs up the files it edits first: `Gothic.dat` → `Gothic.dat.orig`,
-  `Gothic.ini` → `Gothic.ini.before-cj`, and the files Union replaces →
+* It backs up the files it edits first: `Gothic.dat` → `Gothic.dat.orig`, `Gothic.ini` →
+  `Gothic.ini.before-cj` or `Gothic.ini.before-geralt`, and the files Union replaces →
   `system\_backup_before_union`.
-* It builds CJ, the weapons, the HUD, the radar and the bike from your GTA files into `_work\DATA`
-  and `Data\CJ_*.vdf`.
-* It makes Gothic's hero CJ and turns two crossbows, the bolts and two unused items into CJ's
-  weapons (see [Known limitations](#known-limitations)).
-* In `Gothic.ini` it sets GTA's keys and adds the `[CJMOVEMENT]` settings. Your own values stay
-  when you install again.
-* It copies the plugin to `Data\CJMovement.vdf` and creates `Start Gothic with CJ.bat`.
+* It builds the hero (and for GTA San Andreas the weapons, HUD, radar and bike) from your game
+  files into `_work\DATA` and `Data\*.vdf`, and makes Gothic's hero CJ or Geralt in `Gothic.dat`.
+* In `Gothic.ini` it adds the plugin's settings, `[CJMOVEMENT]` or `[WITCHER]`. Your own values
+  stay when you install again. The GTA mashup also sets Gothic's own keys to GTA's.
+* It copies the plugin to `Data\CJMovement.vdf` or `Data\Witcher.vdf` and creates the start files.
 
-Running the installer again is safe. It updates the mod and puts Union back if it's gone.
+The other game is never started or changed. Only its files are read. Running the installer again
+is safe: it updates the mod and puts Union back if it's gone.
 
 ### Troubleshooting
 
 | Problem | Fix |
 | --- | --- |
-| `Start Gothic with CJ.bat` says **Union is not active**, or CJ is there but there's no GTA HUD, controls or bike | Steam puts Gothic's own DLLs back over Union's when it updates or verifies the game, or when you switch its beta branch (public/workshop). Run the installer again. Keep Gothic on one branch. |
-| Still no HUD, controls or bike although Union is installed | Install the [Visual C++ Redistributable (x86)](https://aka.ms/vs/17/release/vc_redist.x86.exe). |
-| **CJMovement.vdf was not found next to the installer** | Extract both files from the zip into the same folder. |
+| The start file says **Union is not active**, or the hero is there but has Gothic's controls | Steam puts Gothic's own DLLs back over Union's when it updates or verifies the game, or when you switch its beta branch (public/workshop). Run the installer again. Keep Gothic on one branch. |
+| Still Gothic's controls although Union is installed | Install the [Visual C++ Redistributable (x86)](https://aka.ms/vs/17/release/vc_redist.x86.exe). |
+| **CJMovement.vdf** or **Witcher.vdf was not found next to the installer** | Extract all files from the zip into the same folder. |
 | **Can't write …** / permission error | Gothic is in a protected folder (often GOG in `Program Files`). Run the installer as administrator. |
 | **GothicMod.exe is missing** | That's the wrong folder: pick the one with `system` and `Data` in it. A disk edition needs the Gothic 1 Player Kit 1.08k. |
-| **… not found under --gta** | That isn't the classic PC GTA San Andreas folder. Pick the folder that contains `models` and `anim`. |
-| Gothic's hero keeps his own voice | CJ's voice needs ffmpeg. Install it (`winget install Gyan.FFmpeg`), then start the installer again. |
-| Windows SmartScreen or an antivirus warns about the installer | The exe isn't code-signed. Use "More info → Run anyway", or build it yourself from source (see below). |
-| Anything else | Set `debugLog=1` in `system\Gothic.ini`, section `[CJMOVEMENT]`, reproduce the problem, and attach `CJMovement.log` from the Gothic folder to an [issue](https://github.com/Kopselek/gothic-gtasa/issues). |
+| **… not found in the GTA San Andreas folder** | That isn't the classic PC GTA San Andreas folder. Pick the folder that contains `models` and `anim`. |
+| **… not found in The Witcher 3 folder** | That isn't The Witcher 3's folder, or the game isn't installed any more. Pick the folder that contains `bin` and `content`. |
+| Gothic's hero keeps his own voice | The hero's voice needs ffmpeg. Install it (`winget install Gyan.FFmpeg`), then start the installer again. |
+| Windows SmartScreen or an antivirus warns about the installer | The exe isn't code-signed. Use "More info → Run anyway", or run the installer from source (see below). |
+| Anything else | Set `debugLog=1` in `system\Gothic.ini`, in the mashup's section (`[CJMOVEMENT]` or `[WITCHER]`), reproduce the problem, and attach the log from the Gothic folder (`CJMovement.log` or `Witcher.log`) to an [issue](https://github.com/Kopselek/gothic-game-mixing/issues). |
 
 ### Uninstall
 
-The GUI installer has no uninstall button yet. To remove the mod by hand:
-
-1. Delete `Data\CJMovement.vdf`, `Data\CJ_Weapons.vdf`, `Data\CJ_Bike.vdf`, `Data\CJ_Voice.vdf`
-   and `Start Gothic with CJ.bat`.
-2. Copy `system\Gothic.ini.before-cj` over `system\Gothic.ini`. That brings back your keys and
-   settings from before the mod.
-3. Copy `_work\DATA\scripts\_compiled\Gothic.dat.orig` over `Gothic.dat` in the same folder. On
-   Steam you can instead use Gothic 1 → Properties → Installed Files → **Verify integrity of game
-   files**, which also puts Gothic's own DLLs back in place of Union's.
-
-The rest of the mod's files in `_work` are only used by the mod and do no harm.
+The GUI installer has no uninstall button yet. Each mashup's README says how to remove it by hand.
 
 With Python, `python tools\install.py --uninstall --gothic "<Gothic folder>"` restores
-`Gothic.dat` and `Gothic.ini` from the backups and removes every file the mod added. Union stays
-installed.
+`Gothic.dat` and `Gothic.ini` from the backups and removes every file of the installed mashup.
+Union stays installed.
 
 ### Command line (developers)
 
-You need **Python 3.10+** with Pillow (`pip install pillow`), plus py7zr (`pip install py7zr`) if
-Union has to be installed. ffmpeg on PATH is optional and only needed for CJ's voice.
+You need **Python 3.10+** with Pillow for GTA San Andreas or numpy for The Witcher 3
+(`pip install pillow numpy`), plus py7zr (`pip install py7zr`) if Union has to be installed.
+ffmpeg on PATH is optional and only needed for the hero's voice.
 
 ```bat
-git clone --recursive https://github.com/Kopselek/gothic-gtasa.git
-cd gothic-gtasa
-python tools\install.py --gta "D:\Games\GTA San Andreas" --gothic "C:\Program Files (x86)\Steam\steamapps\common\Gothic" --plugin path\to\CJMovement.vdf
+git clone --recursive https://github.com/Kopselek/gothic-game-mixing.git
+cd gothic-game-mixing
+python tools\install.py --game gta --game-dir "D:\Games\GTA San Andreas" --gothic "C:\Program Files (x86)\Steam\steamapps\common\Gothic"
+python tools\install.py --game witcher --game-dir "D:\Games\The Witcher 3" --gothic "C:\Program Files (x86)\Steam\steamapps\common\Gothic" --lang pl
 ```
 
-* Get `CJMovement.vdf` from the releases, or build it with `plugin\CJMovement\build.bat` (see
-  [Building the plugin](#building-the-plugin)).
-* `--install-union` installs Union without asking.
-* `--skip-voice` keeps Gothic's hero voice.
-* Each step can also be run on its own: run any `tools\make_cj_*.py` with `--help`.
+* `--gta DIR` is short for `--game gta --game-dir DIR`, and `--w3 DIR` for `--game witcher
+  --game-dir DIR`.
+* The plugin is taken from `plugin\out` once you have built it (see
+  [Building the plugins](#building-the-plugins)). Or pass `--plugin path\to\CJMovement.vdf`
+  (or `Witcher.vdf`) from a release.
+* `--install-union` installs Union without asking. `--skip-voice` keeps Gothic's hero voice.
+  `--lang en` (or `de`, `fr`, ...) picks Geralt's dub.
+* Each step can also be run on its own: run any `mashups\<game>\tools\make_*.py` with `--help`.
 
-## What it does
+## How it works
 
-* **CJ as the hero:** his GTA model, skeleton and animations, and his voice in place of the
-  hero's lines.
+Every mashup has the same two parts:
 
-* **GTA controls and camera:** camera-relative W/A/S/D, a mouse-orbit follow camera, sprint that
-  builds up like GTA's, GTA's jump, and a click combo with your fists.
+* **Converters** (Python, `mashups/<game>/tools`). They read the other game's files from your
+  install and write Gothic's formats: ASC models and animations, `-C.TEX` textures, WAV sounds, a
+  patched `Gothic.dat` and VDF archives.
+* **A Union plugin** (C++, `mashups/<game>/plugin/src/Plugin.ipp`). It brings the other game's
+  mechanics into Gothic's engine: controls, camera, combat, HUD and the rest.
 
-* **GTA HUD:** health, money (Gothic's ore), weapon icon with ammo, clock, a radar built from
-  Gothic's world map, and "wasted" with San Andreas's death camera.
+Everything on Gothic's side is shared:
 
-* **Weapons:** the Colt 45 pistol (aim, fire, reload, muzzle flash, bullet impacts and splashes),
-  the rocket launcher (first-person aim, missile, an explosion that kills and throws people and the
-  bike) and the purple dildo, which makes enemies run away. Shots and explosions light up their
-  surroundings. Q/E cycle them like in GTA.
+```text
+tools/              Gothic's side, used by every mashup:
+                      install.py, installer_gui.py   the installer (command line and window)
+                      union.py                       download and install Union 1.0m into Gothic 1
+                      asc, tex, vdf, wav, mesh3ds    Gothic's formats
+                      daedalus, datpatch             read and patch Gothic's compiled scripts (Gothic.dat)
+                      png, render                    preview images
+plugin/             the plugins' build (union-plugin-template; the Union libraries are submodules)
+mashups/gta/        GTA San Andreas: README, tools (GTA's formats, make_cj_*.py), plugin (CJMovement)
+mashups/witcher/    The Witcher 3: README, PLAN, tools (The Witcher 3's formats, make_geralt_*.py), plugin (Witcher)
+```
 
-* **Motorbike:** the Sanchez, with GTA's handling numbers, gearbox, rider animations, and its
-  engine, skid, crash and suspension sounds. Its wheels throw up dust and water spray, it has a
-  headlight at night, and it drowns in deep water. Crashing hurts CJ. Press F to get on.
+What the installer does for a mashup is described in `mashups/<game>/tools/mashup_<game>.py`: its
+name and hero, its plugin, its `Gothic.ini` settings, the tools it runs, the files it writes and
+its start files.
 
-* **Clock:** Gothic's day can run at GTA's pace.
+### Adding a mashup
 
-## Controls
+1. `mashups/<game>/tools`: the converters, and `mashup_<game>.py` with the same names as
+   `mashup_gta.py` (`NAME`, `TITLE`, `HERO`, `PLUGIN`, `SETTINGS`, `MOD_FILES`, `check()`,
+   `build()`, `starters()`, `selftest()` and the rest). A tool that runs on its own puts the shared
+   `tools` folder on `sys.path` with the same line the other tools have. Module names must be
+   unique across the mashups, because the installer exe holds them all side by side.
+2. `mashups/<game>/plugin`: `src/Plugin.ipp` and a `CMakeLists.txt` with the plugin's `project()`
+   and `add_union_plugin()`. Add the folder to `plugin/CMakeLists.txt`.
+3. Import `mashup_<game>` in `tools/install.py` (`MASHUPS`). In
+   `.github/workflows/release.yml`, add the tools folder to `--paths` and the plugin to the
+   package.
 
-| Key | Action |
-| --- | --- |
-| W/A/S/D | move, relative to the camera |
-| Mouse | camera |
-| Space | sprint |
-| Left Shift | jump / climb |
-| Left Alt | walk |
-| C | sneak |
-| F | talk, take, open, use; get on and off the bike |
-| Q / E, mouse wheel | cycle weapons: fists, pistol, rocket launcher, dildo |
-| Left mouse | punch (click again for the combo), fire, swing |
-| Right mouse | block, aim |
-| On the bike | W/S throttle and brake, A/D steer, Space rear brake, ↑/↓ lean |
+## Building the plugins
 
-Gothic's menu keys stay the same: Tab for the inventory, B for status, and its log and map keys.
+`plugin/` builds every mashup's [Union](https://gitlab.com/union-framework) plugin. It is based on
+[union-plugin-template](https://github.com/Patrix9999/union-plugin-template), with the build made
+per plugin (`plugin/cmake/add_union_plugin.cmake`). Building needs **Visual Studio 2022+** (or
+Build Tools) with the C++ workload and CMake, plus **git**. The Union libraries are git
+submodules. `plugin\build.bat` finds Visual Studio, fetches the submodules if they're missing, and
+builds:
 
-## Settings
+* `plugin\out\build\G1-Release\gta\vdf\CJMovement.vdf`
+* `plugin\out\build\G1-Release\witcher\vdf\Witcher.vdf`
 
-All settings are in `Gothic.ini`, section `[CJMOVEMENT]`, each with a short note. Some useful ones:
-
-* `runSpeed`, `sprintSpeed`: CJ's speed as a share of GTA's.
-* `mouseSpeed`, `invertMouseY`, `camDistance`: camera feel.
-* `gtaHud`, `radar`, `gtaClock`, `wastedCam`: switch features on or off.
-* `rocketRadius`, `fleeRadius`, `bikeSpeed`, `bikeGrip`: weapon and bike tuning.
-* `lightFlashes`, `bikeLight`: light from shots and explosions, the bike's headlight.
-* `crashDamage`: how much bike crashes hurt CJ (0 = not at all).
-* `debugLog=1`: writes `CJMovement.log` in the Gothic folder. Attach it to bug reports.
-
-## Known limitations
-
-* The new items' names are in Polish, for example "Pistolet 9mm". They are set in
-  `tools\make_cj_pistol.py`.
-* The guns and the dildo replace a few Gothic items, so those items no longer exist as they were:
-  * the light crossbow, which becomes the pistol, and its bolts, which become pistol ammo;
-  * the second crossbow, which becomes the rocket launcher;
-  * an unused alchemy ingredient, which becomes rockets;
-  * Jackal's unused sword, which becomes the dildo.
-* The bike isn't saved with the game. It appears next to CJ on every load. That is also how you
-  get it back after it drowns in deep water.
-
-## Building the plugin
-
-`plugin/CJMovement` is a [Union](https://gitlab.com/union-framework) plugin, based on
-[union-plugin-template](https://github.com/Patrix9999/union-plugin-template). Building it needs
-**Visual Studio 2022+** (or Build Tools) with the C++ workload and CMake, plus **git**. The Union
-libraries are git submodules. `build.bat` finds Visual Studio, fetches the submodules if they're
-missing, and builds `CJMovement.vdf`. All of the mod's code is in
-`plugin/CJMovement/src/Plugin.ipp`.
+`plugin\build.bat CJMovement` (or `Witcher`) builds only that one. Copy the VDF into
+`<Gothic>\Data` and restart the game.
 
 Releases are built by GitHub Actions (`.github/workflows/release.yml`) when a `v*` tag is pushed:
-the plugin, then the installer exe, which must pass `GothicGTAInstaller.exe --selftest` before
+the plugins, then the installer exe, which must pass `GothicMashupInstaller.exe --selftest` before
 the release is published.
 
 ## Credits
@@ -200,8 +201,14 @@ the release is published.
   which includes GothicVDFS by NicoDE.
 * [gta-reversed](https://github.com/gta-reversed/gta-reversed), used for research into how
   GTA San Andreas works (movement, gearbox, tyres, HUD).
+* [WolvenKit-7](https://github.com/WolvenKit/WolvenKit-7), used for research into The Witcher 3's
+  file formats.
+* [universal-modder](https://github.com/rehan-remade/universal-modder): the method for modding
+  and mashing up games with an AI agent, which these mashups follow.
+* Built with AI assistance (Claude Code).
 
 ## License
 
 The mod's own code is under the [MIT License](LICENSE). That covers the tools and the plugin
-source only, not GTA San Andreas or Gothic content, which you supply from your own copies.
+source only, not Gothic, GTA San Andreas or The Witcher 3 content, which you supply from your own
+copies.

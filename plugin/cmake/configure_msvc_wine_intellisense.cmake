@@ -40,7 +40,7 @@ function(configure_msvc_wine_intellisense)
                 PROPERTIES LANGUAGE CXX
             )
 
-            get_target_property(_target_private_include_dirs ${CMAKE_PROJECT_NAME} INCLUDE_DIRECTORIES)
+            get_target_property(_target_private_include_dirs ${ARG_TARGET} INCLUDE_DIRECTORIES)
             target_include_directories("${_editor_target}" PRIVATE ${_target_private_include_dirs})
 
             target_compile_definitions("${_editor_target}"
@@ -54,7 +54,7 @@ function(configure_msvc_wine_intellisense)
                     "/FI${_editor_context_header}"
             )
 
-            get_target_property(_target_private_link_libs ${CMAKE_PROJECT_NAME} LINK_LIBRARIES)
+            get_target_property(_target_private_link_libs ${ARG_TARGET} LINK_LIBRARIES)
             target_link_libraries("${_editor_target}" PRIVATE ${_target_private_link_libs})
         endwhile()
     endif()

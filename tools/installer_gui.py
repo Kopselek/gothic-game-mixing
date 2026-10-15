@@ -11,17 +11,17 @@ import traceback
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 
-# install.py and the make_cj_*.py tools it imports run inside this process, so PyInstaller bundles
-# them with everything they import.
+# install.py, the mashups' descriptions and the tools they import run inside this process, so
+# PyInstaller bundles them with everything they import.
 import install
 import union
 
 
-APP_NAME = "Gothic GTA Installer"
+APP_NAME = "Gothic Mashup Installer"
 
 
 def release_dir() -> str:
-    """The release package places the EXE and CJMovement.vdf side by side."""
+    """The release package places the EXE and the mashups' plugins (CJMovement.vdf, Witcher.vdf) side by side."""
     if getattr(sys, "frozen", False):
         return os.path.dirname(sys.executable)
     return os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -44,63 +44,88 @@ class InstallerApp:
     def __init__(self, root: tk.Tk):
         self.root = root
         self.root.title(APP_NAME)
-        self.root.geometry("720x500")
-        self.root.minsize(620, 440)
+        self.root.geometry("760x560")
+        self.root.minsize(660, 500)
 
         self.output_queue: queue.Queue[str] = queue.Queue()
         self.running = False
 
-        self.gta_var = tk.StringVar()
+        self.game_var = tk.StringVar(value=next(iter(install.MASHUPS)))
+        # each game keeps its own folder, so switching back and forth loses nothing
+        self.game_dirs = {name: tk.StringVar() for name in install.MASHUPS}
         self.gothic_var = tk.StringVar()
-        self.status_var = tk.StringVar(value="Select both game folders, then click Install.")
+        self.lang_var = tk.StringVar()
+        self.status_var = tk.StringVar(value="Choose the game, select both game folders, then click Install.")
 
         main = ttk.Frame(root, padding=16)
         main.pack(fill="both", expand=True)
         main.columnconfigure(1, weight=1)
-        main.rowconfigure(5, weight=1)
+        main.rowconfigure(7, weight=1)
 
         ttk.Label(
             main,
-            text="Gothic 1 + GTA: San Andreas",
+            text="Gothic 1 mashups",
             font=("Segoe UI", 15, "bold"),
         ).grid(row=0, column=0, columnspan=3, sticky="w", pady=(0, 6))
         ttk.Label(
             main,
-            text="Choose your existing game folders. The installer does not include either game.",
-            wraplength=660,
+            text="Gothic 1 is the base. Choose the game to combine it with, then select your existing "
+                 "folders of both games. The installer does not include either game.",
+            wraplength=700,
         ).grid(row=1, column=0, columnspan=3, sticky="w", pady=(0, 16))
 
-        ttk.Label(main, text="GTA: San Andreas folder").grid(
+        ttk.Label(main, text="Combine Gothic 1 with").grid(
             row=2, column=0, sticky="w", padx=(0, 10), pady=5
         )
-        ttk.Entry(main, textvariable=self.gta_var).grid(
-            row=2, column=1, sticky="ew", pady=5
-        )
-        ttk.Button(main, text="Browse…", command=self.choose_gta).grid(
-            row=2, column=2, padx=(8, 0), pady=5
-        )
+        games = ttk.Frame(main)
+        games.grid(row=2, column=1, columnspan=2, sticky="w", pady=5)
+        self.game_buttons = []
+        for mashup in install.MASHUPS.values():
+            button = ttk.Radiobutton(
+                games,
+                text=f"{mashup.TITLE} (play as {mashup.HERO})",
+                value=mashup.NAME,
+                variable=self.game_var,
+                command=self.show_game,
+            )
+            button.pack(side="left", padx=(0, 18))
+            self.game_buttons.append(button)
 
-        ttk.Label(main, text="Gothic 1 folder").grid(
-            row=3, column=0, sticky="w", padx=(0, 10), pady=5
-        )
-        ttk.Entry(main, textvariable=self.gothic_var).grid(
-            row=3, column=1, sticky="ew", pady=5
-        )
-        ttk.Button(main, text="Browse…", command=self.choose_gothic).grid(
+        self.game_label = ttk.Label(main)
+        self.game_label.grid(row=3, column=0, sticky="w", padx=(0, 10), pady=5)
+        self.game_entry = ttk.Entry(main)
+        self.game_entry.grid(row=3, column=1, sticky="ew", pady=5)
+        ttk.Button(main, text="Browse…", command=self.choose_game_dir).grid(
             row=3, column=2, padx=(8, 0), pady=5
         )
 
+        ttk.Label(main, text="Gothic 1 folder").grid(
+            row=4, column=0, sticky="w", padx=(0, 10), pady=5
+        )
+        ttk.Entry(main, textvariable=self.gothic_var).grid(
+            row=4, column=1, sticky="ew", pady=5
+        )
+        ttk.Button(main, text="Browse…", command=self.choose_gothic).grid(
+            row=4, column=2, padx=(8, 0), pady=5
+        )
+
+        # only for a mashup whose hero speaks a dub you choose (The Witcher 3)
+        self.lang_label = ttk.Label(main)
+        self.lang_label.grid(row=5, column=0, sticky="w", padx=(0, 10), pady=5)
+        self.lang_box = ttk.Combobox(main, textvariable=self.lang_var, width=8, state="readonly")
+        self.lang_box.grid(row=5, column=1, sticky="w", pady=5)
+
         ttk.Label(main, text="Installer log").grid(
-            row=4, column=0, columnspan=3, sticky="w", pady=(14, 5)
+            row=6, column=0, columnspan=3, sticky="w", pady=(14, 5)
         )
         self.log = tk.Text(main, height=12, wrap="word", state="disabled")
-        self.log.grid(row=5, column=0, columnspan=3, sticky="nsew")
+        self.log.grid(row=7, column=0, columnspan=3, sticky="nsew")
         scrollbar = ttk.Scrollbar(main, orient="vertical", command=self.log.yview)
-        scrollbar.grid(row=5, column=3, sticky="ns")
+        scrollbar.grid(row=7, column=3, sticky="ns")
         self.log.configure(yscrollcommand=scrollbar.set)
 
         bottom = ttk.Frame(main)
-        bottom.grid(row=6, column=0, columnspan=3, sticky="ew", pady=(12, 0))
+        bottom.grid(row=8, column=0, columnspan=3, sticky="ew", pady=(12, 0))
         bottom.columnconfigure(0, weight=1)
         ttk.Label(bottom, textvariable=self.status_var).grid(
             row=0, column=0, sticky="w"
@@ -113,12 +138,41 @@ class InstallerApp:
             row=0, column=2, sticky="e", padx=(8, 0)
         )
 
+        self.show_game()
         self.root.after(100, self.poll_output)
 
-    def choose_gta(self) -> None:
-        path = filedialog.askdirectory(title="Select the GTA: San Andreas folder")
+    def mashup(self):
+        return install.MASHUPS[self.game_var.get()]
+
+    def show_game(self) -> None:
+        """The game folder (and dub) rows for the chosen game."""
+        mashup = self.mashup()
+        self.game_label.configure(text=f"{mashup.TITLE} folder")
+        self.game_entry.configure(textvariable=self.game_dirs[mashup.NAME])
+        if mashup.DEFAULT_LANG:
+            self.lang_label.configure(text=f"{mashup.HERO}'s voice (dub)")
+            self.update_dubs()
+            self.lang_label.grid()
+            self.lang_box.grid()
+        else:
+            self.lang_label.grid_remove()
+            self.lang_box.grid_remove()
+
+    def update_dubs(self) -> None:
+        mashup = self.mashup()
+        langs = mashup.dubs(self.game_dirs[mashup.NAME].get().strip()) or [mashup.DEFAULT_LANG]
+        self.lang_box.configure(values=langs)
+        if self.lang_var.get() not in langs:
+            self.lang_var.set(mashup.DEFAULT_LANG if mashup.DEFAULT_LANG in langs
+                              else ("en" if "en" in langs else langs[0]))
+
+    def choose_game_dir(self) -> None:
+        mashup = self.mashup()
+        path = filedialog.askdirectory(title=f"Select {mashup.GAME_FOLDER}")
         if path:
-            self.gta_var.set(path)
+            self.game_dirs[mashup.NAME].set(path)
+            if mashup.DEFAULT_LANG:
+                self.update_dubs()
 
     def choose_gothic(self) -> None:
         path = filedialog.askdirectory(title="Select the Gothic 1 folder")
@@ -143,32 +197,45 @@ class InstallerApp:
         if self.running:
             return
 
-        gta = self.gta_var.get().strip()
+        mashup = self.mashup()
+        game_dir = self.game_dirs[mashup.NAME].get().strip()
         gothic = self.gothic_var.get().strip()
-        plugin = os.path.join(release_dir(), "CJMovement.vdf")
+        lang = (self.lang_var.get().strip() or mashup.DEFAULT_LANG) if mashup.DEFAULT_LANG else None
+        plugin = install.find_plugin(mashup, release_dir())
 
-        if not gta or not os.path.isdir(gta):
-            messagebox.showerror(APP_NAME, "Select a valid GTA: San Andreas folder.")
+        if not game_dir or not os.path.isdir(game_dir):
+            messagebox.showerror(APP_NAME, f"Select your {mashup.TITLE} folder: {mashup.GAME_FOLDER}.")
             return
         if not gothic or not os.path.isdir(gothic):
             messagebox.showerror(APP_NAME, "Select a valid Gothic 1 folder.")
             return
-        if not os.path.isfile(plugin):
+        if not plugin:
             messagebox.showerror(
                 APP_NAME,
-                "CJMovement.vdf was not found next to the installer.\n\n"
-                "Keep GothicGTAInstaller.exe and CJMovement.vdf in the same folder "
-                "or extract both files from the release ZIP.",
+                f"{mashup.PLUGIN}.vdf was not found next to the installer.\n\n"
+                f"Keep {install.INSTALLER_EXE} and the .vdf files in the same folder "
+                "or extract all files from the release ZIP.",
             )
             return
 
         # everything but Union first, so a wrong folder isn't met with an offer to install Union into it
-        problems = install.check(gothic, gta, install_union=not union.installed(gothic))
+        problems = install.check(gothic, mashup.NAME, game_dir, install_union=not union.installed(gothic), lang=lang)
         if problems:
             messagebox.showerror(APP_NAME, "Can't install:\n\n- " + "\n- ".join(problems))
             return
 
-        argv = ["--gta", gta, "--gothic", gothic, "--plugin", plugin]
+        others = [m for m in install.installed_mashups(gothic) if m is not mashup]
+        if others and not messagebox.askyesno(
+            APP_NAME,
+            f"This Gothic folder has {others[0].HERO} ({others[0].TITLE}) installed. A Gothic folder "
+            f"holds one mashup at a time, so installing {mashup.TITLE} removes it first: Gothic.dat and "
+            f"Gothic.ini go back to how they were before it, and its files are deleted.\n\nContinue?",
+        ):
+            return
+
+        argv = ["--game", mashup.NAME, "--game-dir", game_dir, "--gothic", gothic, "--plugin", plugin]
+        if lang:
+            argv += ["--lang", lang]
         if not union.installed(gothic):
             if not messagebox.askyesno(
                 APP_NAME,
@@ -187,8 +254,10 @@ class InstallerApp:
 
         self.running = True
         self.install_button.configure(state="disabled")
-        self.status_var.set("Installing…")
-        self.append_log("Starting installation…\n")
+        for button in self.game_buttons:
+            button.configure(state="disabled")
+        self.status_var.set(f"Installing {mashup.TITLE}… (this takes several minutes)")
+        self.append_log(f"Starting installation: Gothic 1 + {mashup.TITLE}…\n")
 
         thread = threading.Thread(target=self.run_installer, args=(argv,), daemon=True)
         thread.start()
@@ -214,6 +283,8 @@ class InstallerApp:
     def finish(self, success: bool) -> None:
         self.running = False
         self.install_button.configure(state="normal")
+        for button in self.game_buttons:
+            button.configure(state="normal")
         if success:
             self.status_var.set("Installation finished.")
             self.append_log("\nInstallation finished.\n")
@@ -227,23 +298,18 @@ class InstallerApp:
 
 
 def selftest(log_path: str | None) -> int:
-    """Check a built installer (CI runs it before publishing): every tool imports, Pillow reads TGA,
-    and Union downloads, verifies and unpacks into a scratch folder."""
+    """Check a built installer (CI runs it before publishing): every mashup's tools import with what
+    they need (numpy, Pillow), and Union downloads, verifies and unpacks into a scratch folder."""
     with contextlib.ExitStack() as stack:
         out = stack.enter_context(open(log_path, "w", encoding="utf-8")) if log_path else sys.stdout
         stack.enter_context(contextlib.redirect_stdout(out))
         stack.enter_context(contextlib.redirect_stderr(out))
         try:
-            import make_cj_bike, make_cj_hud, make_cj_model, make_cj_pistol, make_cj_radar, make_cj_voice  # noqa: F401
+            for mashup in install.MASHUPS.values():
+                mashup.selftest()
             import tex
-            from PIL import Image
 
-            print("tools import: ok")
-            print("numpy:", "bundled" if tex._numpy() else "missing (slower textures)")
-            tga = io.BytesIO()
-            Image.new("RGBA", (2, 2)).save(tga, "TGA")
-            Image.open(io.BytesIO(tga.getvalue())).convert("RGBA")
-            print("Pillow TGA: ok")
+            print("numpy for textures:", "bundled" if tex._numpy() else "missing (slower textures)")
             with tempfile.TemporaryDirectory() as gothic:
                 union.install(gothic)
                 if not union.installed(gothic):

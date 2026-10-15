@@ -27,24 +27,28 @@ jobs:
       - name: Set up MSBuild
         uses: microsoft/setup-msbuild@v2
 
-      - name: Build CJMovement.vdf
+      # every mashup's plugin, one VDF each (plugin/CMakeLists.txt)
+      - name: Build the plugins
         shell: cmd
         run: |
-          call plugin\CJMovement\build.bat
+          call plugin\build.bat
           if errorlevel 1 exit /b 1
 
-      - name: Verify plugin was built
+      - name: Verify the plugins were built
         shell: pwsh
         run: |
-          $plugin = "plugin/CJMovement/out/build/G1-Release/vdf/CJMovement.vdf"
-          if (!(Test-Path $plugin)) {
-            Write-Error "Build succeeded but CJMovement.vdf was not found at $plugin"
-            exit 1
+          foreach ($plugin in "plugin/out/build/G1-Release/gta/vdf/CJMovement.vdf",
+                              "plugin/out/build/G1-Release/witcher/vdf/Witcher.vdf") {
+            if (!(Test-Path $plugin)) {
+              Write-Error "Build succeeded but $plugin was not found"
+              exit 1
+            }
           }
 
-      # tools/installer_gui.py imports install.py, which imports the make_cj_*.py tools and union.py,
-      # so PyInstaller bundles them and everything they import (no --add-data or --hidden-import).
-      # Pillow: the radar; py7zr: unpacking Union; numpy: fast texture encoding.
+      # tools/installer_gui.py imports install.py, which imports every mashup's mashup_<game>.py, and
+      # those import their tools and union.py, so PyInstaller bundles them and everything they import
+      # (no --add-data or --hidden-import); --paths puts each mashup's tools next to the shared ones.
+      # Pillow: GTA's radar; numpy: Geralt's model and fast texture encoding; py7zr: unpacking Union.
       - name: Install packaging dependencies
         run: python -m pip install --upgrade pip pyinstaller pillow py7zr numpy
 
@@ -52,20 +56,22 @@ jobs:
         shell: pwsh
         run: |
           pyinstaller --noconfirm --clean --onefile --windowed `
-            --name GothicGTAInstaller `
+            --name GothicMashupInstaller `
             --paths tools `
+            --paths mashups/gta/tools `
+            --paths mashups/witcher/tools `
             tools/installer_gui.py
 
-      # The exe has no console, so it writes its report into a file. It imports every tool and
-      # downloads and unpacks Union into a scratch folder, so a broken build never gets released.
+      # The exe has no console, so it writes its report into a file. It imports every mashup's tools
+      # and downloads and unpacks Union into a scratch folder, so a broken build never gets released.
       - name: Smoke test installer executable
         shell: pwsh
         run: |
           $log = Join-Path $PWD "selftest.log"
-          $p = Start-Process -FilePath "dist/GothicGTAInstaller.exe" -ArgumentList "--selftest", "`"$log`"" -Wait -PassThru
+          $p = Start-Process -FilePath "dist/GothicMashupInstaller.exe" -ArgumentList "--selftest", "`"$log`"" -Wait -PassThru
           if (Test-Path $log) { Get-Content $log }
           if ($p.ExitCode -ne 0) {
-            Write-Error "GothicGTAInstaller.exe --selftest failed with exit code $($p.ExitCode)"
+            Write-Error "GothicMashupInstaller.exe --selftest failed with exit code $($p.ExitCode)"
             exit 1
           }
 
@@ -73,10 +79,18 @@ jobs:
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path release-package | Out-Null
-          Copy-Item "dist/GothicGTAInstaller.exe" "release-package/"
-          Copy-Item "plugin/CJMovement/out/build/G1-Release/vdf/CJMovement.vdf" "release-package/"
+          Copy-Item "dist/GothicMashupInstaller.exe" "release-package/"
+          Copy-Item "plugin/out/build/G1-Release/gta/vdf/CJMovement.vdf" "release-package/"
+          Copy-Item "plugin/out/build/G1-Release/witcher/vdf/Witcher.vdf" "release-package/"
           Copy-Item "README.md" "release-package/" -ErrorAction SilentlyContinue
-          Compress-Archive -Path "release-package/*" -DestinationPath "GothicGTAInstaller.zip" -Force
+          Compress-Archive -Path "release-package/*" -DestinationPath "GothicMashupInstaller.zip" -Force
+
+      - name: Upload the package (manual runs)
+        if: ${{ !startsWith(github.ref, 'refs/tags/') }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: GothicMashupInstaller
+          path: GothicMashupInstaller.zip
 
       - name: Publish GitHub Release
         if: startsWith(github.ref, 'refs/tags/')
@@ -84,6 +98,7 @@ jobs:
         with:
           generate_release_notes: true
           files: |
-            GothicGTAInstaller.zip
-            release-package/GothicGTAInstaller.exe
+            GothicMashupInstaller.zip
+            release-package/GothicMashupInstaller.exe
             release-package/CJMovement.vdf
+            release-package/Witcher.vdf
