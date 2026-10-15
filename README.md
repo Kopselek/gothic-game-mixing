@@ -8,17 +8,18 @@ brings its hero, controls, mechanics and content. Choose one:
 | --- | --- | --- | --- |
 | **GTA San Andreas** | CJ | GTA's controls, camera and HUD, a radar, GTA weapons, the Sanchez motorbike, CJ's voice | [mashups/gta](mashups/gta/README.md) |
 | **The Witcher 3** | Geralt | The Witcher 3's controls and camera, sword fighting, signs, Geralt's face and voice | [mashups/witcher](mashups/witcher/README.md) |
+| **Minecraft** (Java Edition) | Steve | Minecraft's first-person camera, movement and HUD, blocks, fire, lava, TNT, a bow, spawn eggs and the Ender Dragon | [mashups/minecraft](mashups/minecraft/README.md) |
 
-Gothic 1 is the tested base for both. Gothic 2 Night of the Raven is new: CJ installs into it and
+Gothic 1 is the tested base for all of them. Gothic 2 Night of the Raven is new: CJ installs into it and
 the game starts with his plugin; playing it is still to be tried
-([status](mashups/gta/README.md#gothic-2-status)). Geralt in Gothic 2 hasn't been tried at all.
+([status](mashups/gta/README.md#gothic-2-status)). Geralt and Steve in Gothic 2 haven't been tried at all.
 
-This repository contains **no game files** from Gothic, GTA San Andreas or The Witcher 3. The
+This repository contains **no game files** from Gothic, GTA San Andreas, The Witcher 3 or Minecraft. The
 installer reads **your own** copy of the game you choose and builds its hero and content straight
 into **your own** Gothic folder. You need legal copies of Gothic and of that game.
 
 > Not affiliated with or endorsed by Piranha Bytes, THQ Nordic, Rockstar Games, Take-Two
-> Interactive or CD PROJEKT RED. All game content belongs to its owners.
+> Interactive, CD PROJEKT RED, Mojang Studios or Microsoft. All game content belongs to its owners.
 
 ## Install
 
@@ -37,7 +38,10 @@ into **your own** Gothic folder. You need legal copies of Gothic and of that gam
   * **The Witcher 3: Wild Hunt** for PC (Steam or GOG). The mod was made and tested with the
     next-gen version (4.0 and later). The installer needs `content\content0` with its bundles and
     `texture.cache`.
-* Optional: **ffmpeg** for the hero's voice (see [Troubleshooting](#troubleshooting)).
+  * **Minecraft: Java Edition.** Start a release version once in the Minecraft Launcher, so its
+    client jar and sounds are in `%APPDATA%\.minecraft`. It was made with 1.21.11.
+* Optional: **ffmpeg** for the hero's voice, and for Minecraft's sounds (see
+  [Troubleshooting](#troubleshooting)).
 
 You don't need Python. You also don't need to install Union yourself, because the installer offers
 to do it.
@@ -46,24 +50,25 @@ to do it.
 
 1. Download **`GothicMashupInstaller.zip`** from the
    [latest release](https://github.com/Kopselek/gothic-game-mixing/releases/latest).
-2. Extract **all** its files (`GothicMashupInstaller.exe`, `CJMovement.vdf` and `Witcher.vdf`)
-   into the same folder.
+2. Extract **all** its files (`GothicMashupInstaller.exe`, `CJMovement.vdf`, `Witcher.vdf` and
+   `Minecraft.vdf`) into the same folder.
 3. Run `GothicMashupInstaller.exe`.
 4. Under **Base game**, choose **Gothic 1** or **Gothic 2 Night of the Raven**, and pick its
    folder.
-5. Under **Combine it with**, choose **GTA San Andreas** or **The Witcher 3**, and pick that game's
-   folder. The installer needs both folders.
+5. Under **Combine it with**, choose **GTA San Andreas**, **The Witcher 3** or **Minecraft**, and
+   pick that game's folder. The installer needs both folders.
    * Steam usually has them in `C:\Program Files (x86)\Steam\steamapps\common\`, for example
      `...\common\Gothic`, `...\common\Gothic II` and `...\common\The Witcher 3`.
    * For Gothic, choose the folder that contains `system` and `Data`. For GTA San Andreas, the one
-     with `models` and `anim`. For The Witcher 3, the one with `bin` and `content`.
+     with `models` and `anim`. For The Witcher 3, the one with `bin` and `content`. For Minecraft,
+     its folder with `versions` and `assets` (`%APPDATA%\.minecraft`, filled in for you).
 6. For The Witcher 3, pick the language Geralt speaks (the dubs your copy has, Polish by default).
 7. Click **Install**. If the installer says **Union** is missing, click **Yes**. Union is the
    loader that runs the mod's plugin. The installer downloads Union 1.0m from its author's archive
    ([Gratt-5r2/gothic-fix-archive](https://github.com/Gratt-5r2/gothic-fix-archive)), checks the
    file and installs it.
-8. Wait for "Installation finished". GTA San Andreas takes a few minutes. The Witcher 3 takes
-   several, most of them for Geralt's voice in the dialogues.
+8. Wait for "Installation finished". GTA San Andreas and Minecraft take a few minutes. The
+   Witcher 3 takes several, most of them for Geralt's voice in the dialogues.
 
 A Gothic folder holds **one mashup at a time**. If the other one is already installed, the
 installer asks first, then removes it as an uninstall would, and installs the one you chose. Run
@@ -78,21 +83,25 @@ Play button:
 | --- | --- |
 | GTA San Andreas | `Start Gothic with CJ.bat` |
 | The Witcher 3 | `Start Gothic as Geralt.bat`, or `Start Gothic as Geralt (window).bat` for a window |
+| Minecraft | `Start Gothic as Steve.bat` |
 
-Gothic has to compile the hero's model and animations once. For GTA San Andreas the installer
-does it: at the end Gothic opens in a window and closes by itself. For The Witcher 3 the **first
+Gothic has to compile the hero's model and animations once. For GTA San Andreas and Minecraft the
+installer does it: at the end Gothic opens in a window and closes by itself. For The Witcher 3 the **first
 start takes longer**. Each mashup's README says more.
 
 ### What the installer changes
 
 * It backs up the files it edits first: `Gothic.dat` → `Gothic.dat.orig`, `Gothic.ini` →
-  `Gothic.ini.before-cj` or `Gothic.ini.before-geralt`, and the files Union replaces →
-  `system\_backup_before_union`.
-* It builds the hero (and for GTA San Andreas the weapons, HUD, radar and bike) from your game
-  files into `_work\DATA` and `Data\*.vdf`, and makes Gothic's hero CJ or Geralt in `Gothic.dat`.
-* In `Gothic.ini` it adds the plugin's settings, `[CJMOVEMENT]` or `[WITCHER]`. Your own values
-  stay when you install again. The GTA mashup also sets Gothic's own keys to GTA's.
-* It copies the plugin to `Data\CJMovement.vdf` or `Data\Witcher.vdf` and creates the start files.
+  `Gothic.ini.before-cj`, `Gothic.ini.before-geralt` or `Gothic.ini.before-steve`, and the files
+  Union replaces → `system\_backup_before_union`.
+* It builds the hero (and for GTA San Andreas the weapons, HUD, radar and bike; for Minecraft the
+  blocks, items, mobs and HUD) from your game files into `_work\DATA` and `Data\*.vdf`, and makes
+  Gothic's hero CJ, Geralt or Steve in `Gothic.dat`.
+* In `Gothic.ini` it adds the plugin's settings, `[CJMOVEMENT]`, `[WITCHER]` or `[MINECRAFT]`.
+  Your own values stay when you install again. The GTA and Minecraft mashups also set Gothic's own
+  keys to their game's.
+* It copies the plugin to `Data\CJMovement.vdf`, `Data\Witcher.vdf` or `Data\Minecraft.vdf` and
+  creates the start files.
 
 The other game is never started or changed. Only its files are read. Running the installer again
 is safe: it updates the mod and puts Union back if it's gone.
@@ -103,16 +112,17 @@ is safe: it updates the mod and puts Union back if it's gone.
 | --- | --- |
 | The start file says **Union is not active**, or the hero is there but has Gothic's controls | Steam puts Gothic's own DLLs back over Union's when it updates or verifies the game, or when you switch its beta branch (public/workshop). Run the installer again. Keep Gothic on one branch. |
 | Still Gothic's controls although Union is installed | Install the [Visual C++ Redistributable (x86)](https://aka.ms/vs/17/release/vc_redist.x86.exe). |
-| **CJMovement.vdf** or **Witcher.vdf was not found next to the installer** | Extract all files from the zip into the same folder. |
+| **CJMovement.vdf**, **Witcher.vdf** or **Minecraft.vdf was not found next to the installer** | Extract all files from the zip into the same folder. |
 | **Can't write …** / permission error | Gothic is in a protected folder (often GOG in `Program Files`). Run the installer as administrator. |
 | **GothicMod.exe is missing** / **Gothic2.exe is missing** | That's the wrong folder: pick the one with `system` and `Data` in it. A Gothic 1 disk edition needs the Gothic 1 Player Kit 1.08k. |
 | **That folder holds Gothic 2 … not Gothic 1** (or the other way round) | Choose the base game that matches the folder, or the other game's folder. |
 | **Gothic 2 without Night of the Raven** | The mashups need the addon. Gothic II Gold Edition has it. |
 | **… not found in the GTA San Andreas folder** | That isn't the classic PC GTA San Andreas folder. Pick the folder that contains `models` and `anim`. |
 | **… not found in The Witcher 3 folder** | That isn't The Witcher 3's folder, or the game isn't installed any more. Pick the folder that contains `bin` and `content`. |
-| Gothic's hero keeps his own voice | The hero's voice needs ffmpeg. Install it (`winget install Gyan.FFmpeg`), then start the installer again. |
+| **No Minecraft client with its assets** | Start a release version of Minecraft once in the Minecraft Launcher, then pick the Minecraft folder (the one with `versions` and `assets`) again. |
+| Gothic's hero keeps his own voice, or Minecraft has no sounds | The hero's voice and Minecraft's sounds need ffmpeg. Install it (`winget install Gyan.FFmpeg`), then start the installer again. |
 | Windows SmartScreen or an antivirus warns about the installer | The exe isn't code-signed. Use "More info → Run anyway", or run the installer from source (see below). |
-| Anything else | Set `debugLog=1` in `system\Gothic.ini`, in the mashup's section (`[CJMOVEMENT]` or `[WITCHER]`), reproduce the problem, and attach the log from the Gothic folder (`CJMovement.log` or `Witcher.log`) to an [issue](https://github.com/Kopselek/gothic-game-mixing/issues). |
+| Anything else | Set `debugLog=1` in `system\Gothic.ini`, in the mashup's section (`[CJMOVEMENT]`, `[WITCHER]` or `[MINECRAFT]`), reproduce the problem, and attach the log from the Gothic folder (`CJMovement.log`, `Witcher.log` or `Minecraft.log`) to an [issue](https://github.com/Kopselek/gothic-game-mixing/issues). |
 
 ### Uninstall
 
@@ -124,9 +134,9 @@ Union stays installed.
 
 ### Command line (developers)
 
-You need **Python 3.10+** with Pillow for GTA San Andreas or numpy for The Witcher 3
-(`pip install pillow numpy`), plus py7zr (`pip install py7zr`) if Union has to be installed.
-ffmpeg on PATH is optional and only needed for the hero's voice.
+You need **Python 3.10+** with Pillow for GTA San Andreas, numpy for The Witcher 3, or both for
+Minecraft (`pip install pillow numpy`), plus py7zr (`pip install py7zr`) if Union has to be
+installed. ffmpeg on PATH is optional and only needed for the hero's voice and Minecraft's sounds.
 
 ```bat
 git clone --recursive https://github.com/Kopselek/gothic-game-mixing.git
@@ -134,6 +144,7 @@ cd gothic-game-mixing
 python tools\install.py --game gta --game-dir "D:\Games\GTA San Andreas" --gothic "C:\Program Files (x86)\Steam\steamapps\common\Gothic"
 python tools\install.py --game witcher --game-dir "D:\Games\The Witcher 3" --gothic "C:\Program Files (x86)\Steam\steamapps\common\Gothic" --lang pl
 python tools\install.py --game gta --game-dir "D:\Games\GTA San Andreas" --gothic "C:\Program Files (x86)\Steam\steamapps\common\Gothic II" --gothic-version 2
+python tools\install.py --game minecraft --game-dir "%APPDATA%\.minecraft" --gothic "C:\Program Files (x86)\Steam\steamapps\common\Gothic"
 ```
 
 * `--gothic-version 2` installs into Gothic 2 Night of the Raven (the default is 1). The folder
@@ -142,7 +153,7 @@ python tools\install.py --game gta --game-dir "D:\Games\GTA San Andreas" --gothi
   --game-dir DIR`.
 * The plugin is taken from `plugin\out` once you have built it (see
   [Building the plugins](#building-the-plugins)). Or pass `--plugin path\to\CJMovement.vdf`
-  (or `Witcher.vdf`) from a release.
+  (or `Witcher.vdf`, `Minecraft.vdf`) from a release.
 * `--install-union` installs Union without asking. `--skip-voice` keeps Gothic's hero voice.
   `--lang en` (or `de`, `fr`, ...) picks Geralt's dub.
 * Each step can also be run on its own: run any `mashups\<game>\tools\make_*.py` with `--help`.
@@ -177,6 +188,7 @@ tools/              Gothic's side, used by every mashup:
 plugin/             the plugins' build (union-plugin-template; the Union libraries are submodules)
 mashups/gta/        GTA San Andreas: README, tools (GTA's formats, make_cj_*.py), plugin (CJMovement)
 mashups/witcher/    The Witcher 3: README, PLAN, tools (The Witcher 3's formats, make_geralt_*.py), plugin (Witcher)
+mashups/minecraft/  Minecraft: README, PLAN, tools (Minecraft's files, make_steve.py, make_mc_*.py), plugin (Minecraft)
 ```
 
 What the installer does for a mashup is described in `mashups/<game>/tools/mashup_<game>.py`: its
@@ -207,8 +219,9 @@ builds, each for Gothic 1 and Gothic 2 Night of the Raven (CMake preset `G1-G2A-
 
 * `plugin\out\build\G1-G2A-Release\gta\vdf\CJMovement.vdf`
 * `plugin\out\build\G1-G2A-Release\witcher\vdf\Witcher.vdf`
+* `plugin\out\build\G1-G2A-Release\minecraft\vdf\Minecraft.vdf`
 
-`plugin\build.bat CJMovement` (or `Witcher`) builds only that one. Copy the VDF into
+`plugin\build.bat CJMovement` (or `Witcher`, `Minecraft`) builds only that one. Copy the VDF into
 `<Gothic>\Data` and restart the game.
 
 Releases are built by GitHub Actions (`.github/workflows/release.yml`) when a `v*` tag is pushed:
@@ -227,6 +240,9 @@ the release is published.
   GTA San Andreas works (movement, gearbox, tyres, HUD).
 * [WolvenKit-7](https://github.com/WolvenKit/WolvenKit-7), used for research into The Witcher 3's
   file formats.
+* [Vineflower](https://github.com/Vineflower/vineflower), used locally to study how Minecraft works
+  (its movement, rendering, fire, fluids, explosions and the Ender Dragon). None of Minecraft's
+  code is in this repository.
 * [universal-modder](https://github.com/rehan-remade/universal-modder): the method for modding
   and mashing up games with an AI agent, which these mashups follow.
 * Built with AI assistance (Claude Code).
@@ -234,5 +250,5 @@ the release is published.
 ## License
 
 The mod's own code is under the [MIT License](LICENSE). That covers the tools and the plugin
-source only, not Gothic, GTA San Andreas or The Witcher 3 content, which you supply from your own
-copies.
+source only, not Gothic, GTA San Andreas, The Witcher 3 or Minecraft content, which you supply
+from your own copies.

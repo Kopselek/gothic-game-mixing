@@ -5,13 +5,15 @@ plugin and tools for both). You choose the game it is mashed up with, which brin
 mechanics and content into Gothic:
   gta       GTA San Andreas (classic PC): play as CJ          mashups\\gta
   witcher   The Witcher 3: Wild Hunt: play as Geralt          mashups\\witcher
+  minecraft Minecraft (Java Edition): play as Steve           mashups\\minecraft
 
-Nothing of either game ships with the mod: the mashup's tools read your own copy of that game and
+Nothing of the other game ships with the mod: the mashup's tools read your own copy of that game and
 write into your Gothic folder. Then this sets Gothic.ini up for the mashup's plugin and copies the
 plugin into Data.
 
   python install.py --game gta --game-dir "D:\\Games\\GTA San Andreas" [--gothic DIR] [--gothic-version 1|2] [--plugin CJMovement.vdf] [--install-union]
   python install.py --game witcher --game-dir "D:\\Games\\The Witcher 3" [--lang pl] [...]
+  python install.py --game minecraft --game-dir "%APPDATA%\\.minecraft" [...]
   python install.py --uninstall [--gothic DIR]
 
 --gta DIR is short for --game gta --game-dir DIR, and --w3 DIR for --game witcher --game-dir DIR.
@@ -48,9 +50,10 @@ for _tools in sorted(glob.glob(os.path.join(REPO, "mashups", "*", "tools"))):
         sys.path.append(_tools)
 
 import mashup_gta  # noqa: E402
+import mashup_minecraft  # noqa: E402
 import mashup_witcher  # noqa: E402
 
-MASHUPS = {m.NAME: m for m in (mashup_gta, mashup_witcher)}
+MASHUPS = {m.NAME: m for m in (mashup_gta, mashup_witcher, mashup_minecraft)}
 
 
 def gothic_paths(gothic):

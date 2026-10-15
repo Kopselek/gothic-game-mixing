@@ -38,7 +38,8 @@ jobs:
         shell: pwsh
         run: |
           foreach ($plugin in "plugin/out/build/G1-G2A-Release/gta/vdf/CJMovement.vdf",
-                              "plugin/out/build/G1-G2A-Release/witcher/vdf/Witcher.vdf") {
+                              "plugin/out/build/G1-G2A-Release/witcher/vdf/Witcher.vdf",
+                              "plugin/out/build/G1-G2A-Release/minecraft/vdf/Minecraft.vdf") {
             if (!(Test-Path $plugin)) {
               Write-Error "Build succeeded but $plugin was not found"
               exit 1
@@ -60,6 +61,7 @@ jobs:
             --paths tools `
             --paths mashups/gta/tools `
             --paths mashups/witcher/tools `
+            --paths mashups/minecraft/tools `
             tools/installer_gui.py
 
       # The exe has no console, so it writes its report into a file. It imports every mashup's tools
@@ -82,6 +84,7 @@ jobs:
           Copy-Item "dist/GothicMashupInstaller.exe" "release-package/"
           Copy-Item "plugin/out/build/G1-G2A-Release/gta/vdf/CJMovement.vdf" "release-package/"
           Copy-Item "plugin/out/build/G1-G2A-Release/witcher/vdf/Witcher.vdf" "release-package/"
+          Copy-Item "plugin/out/build/G1-G2A-Release/minecraft/vdf/Minecraft.vdf" "release-package/"
           Copy-Item "README.md" "release-package/" -ErrorAction SilentlyContinue
           Compress-Archive -Path "release-package/*" -DestinationPath "GothicMashupInstaller.zip" -Force
 
@@ -102,3 +105,4 @@ jobs:
             release-package/GothicMashupInstaller.exe
             release-package/CJMovement.vdf
             release-package/Witcher.vdf
+            release-package/Minecraft.vdf

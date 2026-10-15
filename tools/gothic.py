@@ -10,6 +10,7 @@ import functools
 import glob
 import os
 import re
+import struct
 
 from man import root_track
 from msb import to_mds
@@ -51,36 +52,90 @@ def anims_vdfs(gothic_dir):
     return [names[n] for n in ("anims_addon.vdf", "anims.vdf") if n in names]
 
 
-def humans_mds(gothic_dir):
-    """The text of Gothic's human model script: Gothic 1's HUMANS.MDS source, or Gothic 2's
-    compiled HUMANS.MSB turned back into MDS."""
+def model_script(gothic_dir, model="HUMANS"):
+    """The text of a model script of the game (HUMANS, an overlay such as HUMANS_1HST1): Gothic 1's
+    MDS source, or Gothic 2's compiled MSB turned back into MDS."""
+    model = model.upper()
     for path in anims_vdfs(gothic_dir):
         archive = VdfReader(path)
-        for suffix, read in (("/HUMANS.MDS", lambda b: b.decode("latin-1")),
-                             ("/_COMPILED/HUMANS.MSB", lambda b: to_mds(b, "HUMANS"))):
+        for suffix, read in ((f"/{model}.MDS", lambda b: b.decode("latin-1")),
+                             (f"/_COMPILED/{model}.MSB", lambda b: to_mds(b, model))):
             key = next((k for k in archive.files if k.upper().endswith(suffix)), None)
             if key:
                 return read(archive.read(key))
-    raise FileNotFoundError(f"no HUMANS.MDS or HUMANS.MSB in {gothic_dir}\\Data's animation archives")
+    raise FileNotFoundError(f"no {model}.MDS or {model}.MSB in {gothic_dir}\\Data's animation archives")
+
+
+def humans_mds(gothic_dir):
+    """The text of Gothic's human model script (model_script)."""
+    return model_script(gothic_dir, "HUMANS")
+
+
+def model_scripts(gothic_dir, prefix):
+    """The names of the game's model scripts that start with `prefix` (e.g. HUMANS_: the overlays)."""
+    names = set()
+    for path in anims_vdfs(gothic_dir):
+        for key in VdfReader(path).files:
+            name = key.upper().rsplit("/", 1)[-1]
+            if name.startswith(prefix.upper()) and name.endswith((".MDS", ".MSB")):
+                names.add(name[:-4])
+    return sorted(names)
 
 
 @functools.lru_cache(maxsize=None)
 def _compiled_animations(gothic_dir):
-    """{ANI: (archive, file name)} of the compiled HUMANS-<ANI>.MAN files, the addon's first."""
+    """{(MODEL, ANI): (archive, file name)} of the compiled <MODEL>-<ANI>.MAN files, the addon's first."""
     found = {}
     for path in anims_vdfs(gothic_dir):
         archive = VdfReader(path)
         for key in archive.files:
             name = key.upper().rsplit("/", 1)[-1]
-            if "/_COMPILED/" in key.upper() and name.startswith("HUMANS-") and name.endswith(".MAN"):
-                found.setdefault(name[len("HUMANS-"):-len(".MAN")], (archive, key))
+            if "/_COMPILED/" in key.upper() and "-" in name and name.endswith(".MAN"):
+                model, ani = name[:-len(".MAN")].split("-", 1)
+                found.setdefault((model, ani), (archive, key))
     return found
 
 
-def _compiled_animation(gothic_dir, name):
-    """The compiled HUMANS-<name>.MAN, the addon's if it has one; None if the game has none."""
-    entry = _compiled_animations(gothic_dir).get(name.upper())
+def compiled_animation(gothic_dir, name, model="HUMANS"):
+    """The compiled <model>-<name>.MAN, the addon's if it has one; None if the game has none."""
+    entry = _compiled_animations(gothic_dir).get((model.upper(), name.upper()))
     return entry[0].read(entry[1]) if entry else None
+
+
+def _compiled_animation(gothic_dir, name):
+    return compiled_animation(gothic_dir, name)
+
+
+def hierarchy(gothic_dir, model="HUMANS"):
+    """A model's skeleton from its compiled <model>.MDH: ([(name, parent index or -1, 3x4 rows)],
+    root position). Chunk 0xD100: uint32 version, uint16 node count, per node its name + "\\n", int16
+    parent and the 4x4 transform from the parent (column vectors, row by row), then the model's
+    two boxes and the root's place in the bind pose. Engine axes: x right, y up, z forward, cm."""
+    for path in anims_vdfs(gothic_dir):
+        archive = VdfReader(path)
+        key = next((k for k in archive.files if k.upper().endswith(f"/_COMPILED/{model.upper()}.MDH")), None)
+        if key:
+            data = archive.read(key)
+            break
+    else:
+        raise FileNotFoundError(f"no {model}.MDH in {gothic_dir}\\Data's animation archives")
+    pos = 0
+    while pos + 6 <= len(data):
+        kind, size = struct.unpack_from("<HI", data, pos)
+        body, pos = data[pos + 6:pos + 6 + size], pos + 6 + size
+        if kind == 0xD100:
+            count, = struct.unpack_from("<H", body, 4)
+            p, nodes = 6, []
+            for _ in range(count):
+                end = body.index(b"\n", p)
+                name, p = body[p:end].decode("latin-1").upper(), end + 1
+                parent, = struct.unpack_from("<h", body, p)
+                m = struct.unpack_from("<16f", body, p + 2)
+                p += 66
+                nodes.append((name, parent, [list(m[0:4]), list(m[4:8]), list(m[8:12])]))
+            root = struct.unpack_from("<3f", body, p + 48)  # after the two boxes (2 x 6 floats)
+            return nodes, root
+    raise ValueError(f"{model}.MDH has no hierarchy chunk")
 
 
 def mds_entries(text):
@@ -120,7 +175,8 @@ _MDS_START = re.compile(r"^\s*(aniAlias|aniBlend|aniComb|aniDisable|ani)\s*\((.*
 def root_motion(gothic_dir, ani):
     """Where Gothic's hero's root (Bip01) is in each frame of his animation `ani`, relative to
     where it is when he stands (the first frame of S_RUN), in 3ds Max axes as the ASC sources have
-    them (x, y backwards, z up; cm): Gothic moves a character by this motion in animations flagged
+    them (x to the left, y backwards, z up; cm; engine (x, y, z) is max (-x, -z, y): the hero's
+    left hand is at engine -x and at max +x): Gothic moves a character by this motion in animations flagged
     M, and in fly animations (F: ladders) also up and down. The frames are in the source's order
     (Gothic plays a reversed animation back to front). None if the game has no compiled `ani` or it
     leaves the root alone."""
@@ -129,4 +185,4 @@ def root_motion(gothic_dir, ani):
     if track is None:
         return None
     sx, sy, sz = root_track(stand)[0]
-    return [(x - sx, -(z - sz), y - sy) for x, y, z in track]
+    return [(-(x - sx), -(z - sz), y - sy) for x, y, z in track]

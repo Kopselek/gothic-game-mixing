@@ -54,7 +54,9 @@ class InstallerApp:
         self.game_var = tk.StringVar(value=next(iter(install.MASHUPS)))
         # each choice keeps its own folder, so switching back and forth loses nothing
         self.gothic_dirs = {version: tk.StringVar() for version in install.TITLE}
-        self.game_dirs = {name: tk.StringVar() for name in install.MASHUPS}
+        # a game with a usual place (Minecraft's %APPDATA%\.minecraft) starts with it when it is there
+        self.game_dirs = {name: tk.StringVar(value=getattr(m, "DEFAULT_DIR", "") if os.path.isdir(getattr(m, "DEFAULT_DIR", "")) else "")
+                          for name, m in install.MASHUPS.items()}
         self.lang_var = tk.StringVar()
         self.status_var = tk.StringVar(value="Choose Gothic and the game, select both folders, then click Install.")
 

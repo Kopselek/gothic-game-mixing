@@ -38,3 +38,4 @@ add_subdirectory(dependencies)
 # to out/build/<preset>/<game>/vdf/<plugin>.vdf.
 add_subdirectory(../mashups/gta/plugin gta)
 add_subdirectory(../mashups/witcher/plugin witcher)
+add_subdirectory(../mashups/minecraft/plugin minecraft)
