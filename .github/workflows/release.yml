@@ -27,7 +27,7 @@ jobs:
       - name: Set up MSBuild
         uses: microsoft/setup-msbuild@v2
 
-      # every mashup's plugin, one VDF each (plugin/CMakeLists.txt)
+      # every mashup's plugin, one VDF each, one DLL for Gothic 1 and Gothic 2 NotR (plugin/CMakeLists.txt)
       - name: Build the plugins
         shell: cmd
         run: |
@@ -37,8 +37,8 @@ jobs:
       - name: Verify the plugins were built
         shell: pwsh
         run: |
-          foreach ($plugin in "plugin/out/build/G1-Release/gta/vdf/CJMovement.vdf",
-                              "plugin/out/build/G1-Release/witcher/vdf/Witcher.vdf") {
+          foreach ($plugin in "plugin/out/build/G1-G2A-Release/gta/vdf/CJMovement.vdf",
+                              "plugin/out/build/G1-G2A-Release/witcher/vdf/Witcher.vdf") {
             if (!(Test-Path $plugin)) {
               Write-Error "Build succeeded but $plugin was not found"
               exit 1
@@ -80,8 +80,8 @@ jobs:
         run: |
           New-Item -ItemType Directory -Force -Path release-package | Out-Null
           Copy-Item "dist/GothicMashupInstaller.exe" "release-package/"
-          Copy-Item "plugin/out/build/G1-Release/gta/vdf/CJMovement.vdf" "release-package/"
-          Copy-Item "plugin/out/build/G1-Release/witcher/vdf/Witcher.vdf" "release-package/"
+          Copy-Item "plugin/out/build/G1-G2A-Release/gta/vdf/CJMovement.vdf" "release-package/"
+          Copy-Item "plugin/out/build/G1-G2A-Release/witcher/vdf/Witcher.vdf" "release-package/"
           Copy-Item "README.md" "release-package/" -ErrorAction SilentlyContinue
           Compress-Archive -Path "release-package/*" -DestinationPath "GothicMashupInstaller.zip" -Force
 

@@ -99,6 +99,10 @@ namespace GOTHIC_NAMESPACE
 {
 	namespace Witcher
 	{
+		// This file is compiled once per engine: Gothic 1 and Gothic 2 Night of the Raven. The engine
+		// calls go through each one's own gothic-api; the scripts' instances differ.
+		static constexpr bool GOTHIC2 = ENGINE == Engine_G2A;
+
 		struct Settings
 		{
 			bool controls = true;
@@ -958,7 +962,8 @@ namespace GOTHIC_NAMESPACE
 			startSwordGiven = true;
 			if (!settings.startSword || hero->GetEquippedMeleeWeapon())
 				return;
-			int index = parser->GetIndex(zSTRING("ITMW_1H_SWORD_01"));
+			// Gothic 1's unfinished sword, Gothic 2's citizen's sword ("Miecz")
+			int index = parser->GetIndex(zSTRING(GOTHIC2 ? "ITMW_1H_VLK_SWORD" : "ITMW_1H_SWORD_01"));
 			if (index < 0)
 				return;
 			oCItem* item = hero->IsInInv(index, 1);
@@ -1936,7 +1941,7 @@ namespace GOTHIC_NAMESPACE
 	// slopes, and its slide angle threw him off crests (the GTA mashup's findings, docs/09 in the
 	// gothic2beyond knowledge base): height correction at once and steeper walkable ground.
 	void __fastcall zCAIPlayer_PropagateCollObjectStates(zCAIPlayer* self, void* vtable, int state);
-	auto Hook_zCAIPlayer_PropagateCollObjectStates = Union::CreateHook(reinterpret_cast<void*>(0x004FE610),
+	auto Hook_zCAIPlayer_PropagateCollObjectStates = Union::CreateHook(SIGNATURE_OF(&zCAIPlayer::PropagateCollObjectStates),
 		&zCAIPlayer_PropagateCollObjectStates, Union::HookType::Hook_Detours);
 	void __fastcall zCAIPlayer_PropagateCollObjectStates(zCAIPlayer* self, void* vtable, int state)
 	{
@@ -1958,7 +1963,7 @@ namespace GOTHIC_NAMESPACE
 	// A frame counts as at most maxFrameTime ms while the controls are on: on a stutter the game
 	// slows down instead of Geralt leaping off a slope (the GTA mashup).
 	void __fastcall zCTimer_ResetTimer(zCTimer* self, void* vtable);
-	auto Hook_zCTimer_ResetTimer = Union::CreateHook(reinterpret_cast<void*>(0x005CE550), &zCTimer_ResetTimer, Union::HookType::Hook_Detours);
+	auto Hook_zCTimer_ResetTimer = Union::CreateHook(SIGNATURE_OF(&zCTimer::ResetTimer), &zCTimer_ResetTimer, Union::HookType::Hook_Detours);
 	void __fastcall zCTimer_ResetTimer(zCTimer* self, void* vtable)
 	{
 		Hook_zCTimer_ResetTimer(self, vtable);
@@ -1974,7 +1979,7 @@ namespace GOTHIC_NAMESPACE
 
 	// A new game, or a savegame loaded: see Witcher::NewGame.
 	void __fastcall oCGame_LoadGame(oCGame* self, void* vtable, int slot, zSTRING const& level);
-	auto Hook_oCGame_LoadGame = Union::CreateHook(reinterpret_cast<void*>(0x0063C070), &oCGame_LoadGame, Union::HookType::Hook_Detours);
+	auto Hook_oCGame_LoadGame = Union::CreateHook(SIGNATURE_OF(&oCGame::LoadGame), &oCGame_LoadGame, Union::HookType::Hook_Detours);
 	void __fastcall oCGame_LoadGame(oCGame* self, void* vtable, int slot, zSTRING const& level)
 	{
 		Witcher::NewGame();
@@ -1982,7 +1987,7 @@ namespace GOTHIC_NAMESPACE
 	}
 
 	void __fastcall oCGame_LoadSavegame(oCGame* self, void* vtable, int slot, int loadGlobals);
-	auto Hook_oCGame_LoadSavegame = Union::CreateHook(reinterpret_cast<void*>(0x0063C2A0), &oCGame_LoadSavegame, Union::HookType::Hook_Detours);
+	auto Hook_oCGame_LoadSavegame = Union::CreateHook(SIGNATURE_OF(&oCGame::LoadSavegame), &oCGame_LoadSavegame, Union::HookType::Hook_Detours);
 	void __fastcall oCGame_LoadSavegame(oCGame* self, void* vtable, int slot, int loadGlobals)
 	{
 		Witcher::NewGame();
@@ -1991,7 +1996,7 @@ namespace GOTHIC_NAMESPACE
 
 	// The hero's AI reads its controls inside DoAI; the overrides apply only during that call.
 	void __fastcall oCAIHuman_DoAI(oCAIHuman* self, void* vtable, zCVob* vob, int& vobDeleted);
-	auto Hook_oCAIHuman_DoAI = Union::CreateHook(reinterpret_cast<void*>(0x00615A50), &oCAIHuman_DoAI, Union::HookType::Hook_Detours);
+	auto Hook_oCAIHuman_DoAI = Union::CreateHook(SIGNATURE_OF(&oCAIHuman::DoAI), &oCAIHuman_DoAI, Union::HookType::Hook_Detours);
 	void __fastcall oCAIHuman_DoAI(oCAIHuman* self, void* vtable, zCVob* vob, int& vobDeleted)
 	{
 		oCNpc* hero = oCNpc::player;
@@ -2069,7 +2074,7 @@ namespace GOTHIC_NAMESPACE
 	}
 
 	float __fastcall zCInput_Win32_GetState(zCInput_Win32* self, void* vtable, unsigned short key);
-	auto Hook_zCInput_Win32_GetState = Union::CreateHook(reinterpret_cast<void*>(0x004C8310), &zCInput_Win32_GetState, Union::HookType::Hook_Detours);
+	auto Hook_zCInput_Win32_GetState = Union::CreateHook(SIGNATURE_OF(&zCInput_Win32::GetState), &zCInput_Win32_GetState, Union::HookType::Hook_Detours);
 	float __fastcall zCInput_Win32_GetState(zCInput_Win32* self, void* vtable, unsigned short key)
 	{
 		float state;
@@ -2078,7 +2083,7 @@ namespace GOTHIC_NAMESPACE
 	}
 
 	int __fastcall zCInput_Win32_GetToggled(zCInput_Win32* self, void* vtable, unsigned short key);
-	auto Hook_zCInput_Win32_GetToggled = Union::CreateHook(reinterpret_cast<void*>(0x004C8630), &zCInput_Win32_GetToggled, Union::HookType::Hook_Detours);
+	auto Hook_zCInput_Win32_GetToggled = Union::CreateHook(SIGNATURE_OF(&zCInput_Win32::GetToggled), &zCInput_Win32_GetToggled, Union::HookType::Hook_Detours);
 	int __fastcall zCInput_Win32_GetToggled(zCInput_Win32* self, void* vtable, unsigned short key)
 	{
 		float state;
@@ -2093,7 +2098,7 @@ namespace GOTHIC_NAMESPACE
 	// Gothic turns the hero with the mouse and its turn keys here; Geralt turns towards the
 	// camera-relative direction instead.
 	void __fastcall oCAIHuman_PC_Turnings(oCAIHuman* self, void* vtable, int force);
-	auto Hook_oCAIHuman_PC_Turnings = Union::CreateHook(reinterpret_cast<void*>(0x00614800), &oCAIHuman_PC_Turnings, Union::HookType::Hook_Detours);
+	auto Hook_oCAIHuman_PC_Turnings = Union::CreateHook(SIGNATURE_OF(&oCAIHuman::PC_Turnings), &oCAIHuman_PC_Turnings, Union::HookType::Hook_Detours);
 	void __fastcall oCAIHuman_PC_Turnings(oCAIHuman* self, void* vtable, int force)
 	{
 		if (!Witcher::overrideInput)
@@ -2101,7 +2106,7 @@ namespace GOTHIC_NAMESPACE
 	}
 
 	void __fastcall zCAICamera_DoAI(zCAICamera* self, void* vtable, zCVob* vob, int& vobDeleted);
-	auto Hook_zCAICamera_DoAI = Union::CreateHook(reinterpret_cast<void*>(0x0049D6A0), &zCAICamera_DoAI, Union::HookType::Hook_Detours);
+	auto Hook_zCAICamera_DoAI = Union::CreateHook(SIGNATURE_OF(&zCAICamera::DoAI), &zCAICamera_DoAI, Union::HookType::Hook_Detours);
 	void __fastcall zCAICamera_DoAI(zCAICamera* self, void* vtable, zCVob* vob, int& vobDeleted)
 	{
 		Hook_zCAICamera_DoAI(self, vtable, vob, vobDeleted);
@@ -2111,7 +2116,7 @@ namespace GOTHIC_NAMESPACE
 	// Gothic's keys that would act on their own while The Witcher's controls are on: the number
 	// keys (Gothic's weapons and spells), and the keys Geralt uses (Q, E, C, Z).
 	int __fastcall oCGame_HandleEvent(oCGame* self, void* vtable, int key);
-	auto Hook_oCGame_HandleEvent = Union::CreateHook(reinterpret_cast<void*>(0x0065EEE0), &oCGame_HandleEvent, Union::HookType::Hook_Detours);
+	auto Hook_oCGame_HandleEvent = Union::CreateHook(SIGNATURE_OF(&oCGame::HandleEvent), &oCGame_HandleEvent, Union::HookType::Hook_Detours);
 	int __fastcall oCGame_HandleEvent(oCGame* self, void* vtable, int key)
 	{
 		if (Witcher::w3Controls)
@@ -2127,7 +2132,7 @@ namespace GOTHIC_NAMESPACE
 
 	// Gothic armour would replace Geralt's body with a Gothic armour mesh: he keeps his own.
 	void __fastcall oCNpc_EquipArmor(oCNpc* self, void* vtable, oCItem* item);
-	auto Hook_oCNpc_EquipArmor = Union::CreateHook(reinterpret_cast<void*>(0x00697080), &oCNpc_EquipArmor, Union::HookType::Hook_Detours);
+	auto Hook_oCNpc_EquipArmor = Union::CreateHook(SIGNATURE_OF(&oCNpc::EquipArmor), &oCNpc_EquipArmor, Union::HookType::Hook_Detours);
 	void __fastcall oCNpc_EquipArmor(oCNpc* self, void* vtable, oCItem* item)
 	{
 		if (Witcher::settings.controls && self && self == oCNpc::player)
@@ -2142,7 +2147,7 @@ namespace GOTHIC_NAMESPACE
 	// as shares of the victim's health, and hits on him: Quen takes the whole of one, a dodge or
 	// roll makes melee miss, his guard parries or counters (see the header).
 	void __fastcall oCNpc_OnDamage_Hit(oCNpc* self, void* vtable, oCNpc::oSDamageDescriptor& desc);
-	auto Hook_oCNpc_OnDamage_Hit = Union::CreateHook(reinterpret_cast<void*>(0x00731410), &oCNpc_OnDamage_Hit, Union::HookType::Hook_Detours);
+	auto Hook_oCNpc_OnDamage_Hit = Union::CreateHook(SIGNATURE_OF(&oCNpc::OnDamage_Hit), &oCNpc_OnDamage_Hit, Union::HookType::Hook_Detours);
 	void __fastcall oCNpc_OnDamage_Hit(oCNpc* self, void* vtable, oCNpc::oSDamageDescriptor& desc)
 	{
 		using namespace Witcher;
@@ -2220,7 +2225,7 @@ namespace GOTHIC_NAMESPACE
 	// The face animations scripts ask for (Mdl_StartFaceAni and the like): the hero's go to his
 	// face bones (Witcher::FaceExpression), Gothic's own call still runs.
 	int __fastcall oCNpc_StartFaceAni(oCNpc* self, void* vtable, zSTRING const& name, float intensity, float holdTime);
-	auto Hook_oCNpc_StartFaceAni = Union::CreateHook(reinterpret_cast<void*>(0x00695440), &oCNpc_StartFaceAni, Union::HookType::Hook_Detours);
+	auto Hook_oCNpc_StartFaceAni = Union::CreateHook(SIGNATURE_OF(&oCNpc::StartFaceAni), &oCNpc_StartFaceAni, Union::HookType::Hook_Detours);
 	int __fastcall oCNpc_StartFaceAni(oCNpc* self, void* vtable, zSTRING const& name, float intensity, float holdTime)
 	{
 		if (self && self == oCNpc::player)
@@ -2229,7 +2234,7 @@ namespace GOTHIC_NAMESPACE
 	}
 
 	int __fastcall oCNpc_StopFaceAni(oCNpc* self, void* vtable, zSTRING const& name);
-	auto Hook_oCNpc_StopFaceAni = Union::CreateHook(reinterpret_cast<void*>(0x00695730), &oCNpc_StopFaceAni, Union::HookType::Hook_Detours);
+	auto Hook_oCNpc_StopFaceAni = Union::CreateHook(SIGNATURE_OF(&oCNpc::StopFaceAni), &oCNpc_StopFaceAni, Union::HookType::Hook_Detours);
 	int __fastcall oCNpc_StopFaceAni(oCNpc* self, void* vtable, zSTRING const& name)
 	{
 		if (self && self == oCNpc::player)
@@ -2238,7 +2243,7 @@ namespace GOTHIC_NAMESPACE
 	}
 
 	void __fastcall oCGame_Render(oCGame* self, void* vtable);
-	auto Hook_oCGame_Render = Union::CreateHook(reinterpret_cast<void*>(0x0063DBE0), &oCGame_Render, Union::HookType::Hook_Detours);
+	auto Hook_oCGame_Render = Union::CreateHook(SIGNATURE_OF(&oCGame::Render), &oCGame_Render, Union::HookType::Hook_Detours);
 	void __fastcall oCGame_Render(oCGame* self, void* vtable)
 	{
 		Witcher::Update();

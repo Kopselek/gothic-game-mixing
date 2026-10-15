@@ -1,4 +1,4 @@
-"""The ground of the CJMovement plugin's GTA San Andreas radar for Gothic 1's world.
+"""The ground of the CJMovement plugin's GTA San Andreas radar for Gothic 1's world or Gothic 2's worlds.
 
 Two styles (--style):
   gothic  (default) Gothic's own map of the colony, Map_World.tga (the world map item's page),
@@ -17,11 +17,17 @@ Writes _work\\DATA\\TEXTURES\\_COMPILED\\CJ_RADAR-C.TEX and the world rectangle 
 Gothic.ini [CJMOVEMENT] radarX0, radarZ0, radarX1, radarZ1 (Gothic world x and z, cm; north = +z
 is the top of the map).
 
+Gothic 2 Night of the Raven (gothic style): one map per world, Khorinis (NEWWORLD), the Valley of
+Mines (OLDWORLD) and Jharkendar (ADDONWORLD): its map item's page Map_<world>.tga, covering the
+rectangle its Use_Map_<world> script gives the map document (Doc_SetLevelCoords). Writes
+CJ_RADAR_<world>-C.TEX and radarNewWorldX0 ..., radarOldWorldX0 ..., radarAddonWorldX0 ....
+
 usage: python make_cj_radar.py [--gothic DIR] [--style gothic|gta] [--size 2048] [--preview FILE.png]
 Needs Pillow (pip install pillow).
 """
 import argparse
 import colorsys
+import glob
 import math
 import os
 import re
@@ -32,10 +38,16 @@ from PIL import Image, ImageDraw
 
 # Gothic's side (asc, tex, vdf, daedalus, ...) is shared by every mashup: <repo>/tools
 sys.path.insert(1, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "..", "tools"))
+from daedalus import F_EXTERNAL, OP_BE, OP_PUSH_I, OP_PUSH_V, T_FUNC, T_STRING, Script
+from gothic import GOTHIC_2, version as gothic_version
 from tex import write_tex
 from vdf import VdfReader
 
 DEFAULT_GOTHIC = r"C:\Program Files (x86)\Steam\steamapps\common\Gothic"
+# Gothic 2's worlds and the [CJMOVEMENT] prefix of each one's map rectangle (the CJMovement
+# plugin's RADAR_KEYS); Gothic 1's one world uses "radar"
+G2_WORLDS = {"NEWWORLD": "radarNewWorld", "OLDWORLD": "radarOldWorld", "ADDONWORLD": "radarAddonWorld"}
+OP_UNARY_MINUS = 31
 MAT_WATER, MAT_SNOW, MAT_WOOD, MAT_STONE = 5, 6, 3, 2
 # GTA's radar tile colours (most common colours of radar00-143, rounded)
 WATER = (114, 140, 172)
@@ -203,7 +215,72 @@ def build_gothic(gothic_dir, size, preview=None):
     return -dx / 2, -dz / 2, dx / 2, dz / 2
 
 
-def write_ini(gothic_dir, bounds):
+def map_documents(script):
+    """{world file stem: [(page texture, (left, top, right, bottom))]} of Gothic 2's map documents:
+    each Use_Map_* function sets its page (Doc_SetPage), its world (Doc_SetLevel) and the world
+    rectangle the page shows (Doc_SetLevelCoords; a negative number is push_i and a unary minus)."""
+    page_call, level_call, coords_call = (script.by_name[n] for n in ("DOC_SETPAGE", "DOC_SETLEVEL", "DOC_SETLEVELCOORDS"))
+    out = {}
+    for symbol in script.symbols:
+        if symbol.type != T_FUNC or symbol.flags & F_EXTERNAL or not symbol.content or len(symbol.content) != 4:
+            continue
+        page = level = None
+        strings, ints = [], []
+        for _, op, arg in script.instructions(struct.unpack_from("<I", symbol.content)[0]):
+            if op == OP_PUSH_V and script.symbols[arg].type == T_STRING and (script.symbols[arg].name or b"").startswith(b"\xff"):
+                strings.append(script.symbols[arg].content[0].decode("latin-1"))
+            elif op == OP_PUSH_I:
+                ints.append(arg)
+            elif op == OP_UNARY_MINUS and ints:
+                ints[-1] = -ints[-1]
+            elif op == OP_BE:
+                if arg == page_call and strings:
+                    page = strings[-1]
+                elif arg == level_call and strings:
+                    level = strings[-1]
+                elif arg == coords_call and page and level and len(ints) >= 4:
+                    stem = os.path.splitext(os.path.basename(level.replace("\\", "/")))[0].upper()
+                    out.setdefault(stem, []).append((page, tuple(ints[-4:])))
+                strings, ints = [], []
+    return out
+
+
+def read_texture_source(gothic_dir, name):
+    """The TGA source of a texture from Data's archives (the addon's first: it overrides)."""
+    archives = sorted(glob.glob(os.path.join(gothic_dir, "Data", "*.[vV][dD][fF]")), key=lambda p: "_addon" not in p.lower())
+    for path in archives:
+        vdf = VdfReader(path)
+        key = next((k for k in vdf.files if k.upper().endswith("/" + name.upper())), None)
+        if key:
+            return vdf.read(key)
+    raise FileNotFoundError(f"{name} is in none of {gothic_dir}\\Data's archives")
+
+
+def build_gothic2(gothic_dir, size, preview=None):
+    """Each Gothic 2 world's map page (Map_<world>.tga) on the dark ground, size x size, written as
+    CJ_RADAR_<world>-C.TEX, and the world rectangle its map document shows: {ini prefix: bounds}."""
+    import io
+    path = os.path.join(gothic_dir, "_work", "DATA", "scripts", "_compiled", "Gothic.dat")
+    documents = map_documents(Script(open(path, "rb").read()))
+    maps = {}
+    for world, prefix in G2_WORLDS.items():
+        page_name, (left, top, right, bottom) = next((p, c) for p, c in documents[world] if p.upper() == f"MAP_{world}.TGA")
+        page = Image.open(io.BytesIO(read_texture_source(gothic_dir, page_name))).convert("RGBA")
+        ground = Image.new("RGBA", page.size, GOTHIC_GROUND + (255,))
+        image = Image.alpha_composite(ground, page).convert("RGB").resize((size, size), Image.LANCZOS)
+        if preview:
+            root, ext = os.path.splitext(preview)
+            image.save(f"{root}_{world.lower()}{ext or '.png'}")
+        out = os.path.join(gothic_dir, "_work", "DATA", "TEXTURES", "_COMPILED", f"CJ_RADAR_{world}-C.TEX")
+        write_tex(out, size, size, image.convert("RGBA").tobytes())
+        maps[prefix] = (left, bottom, right, top)
+        print(f"radar: Gothic 2's {page_name} {page.size[0]}x{page.size[1]} -> {size}x{size}, world x {left}..{right} "
+              f"z {bottom}..{top} cm -> {out}")
+    return maps
+
+
+def write_ini(gothic_dir, maps):
+    """maps: {key prefix: (x0, z0, x1, z1)}, written as <prefix>X0, Z0, X1, Z1 in [CJMOVEMENT]."""
     path = os.path.join(gothic_dir, "system", "Gothic.ini")
     text = open(path, "rb").read().decode("latin-1")
     nl = "\r\n" if "\r\n" in text else "\n"
@@ -213,27 +290,34 @@ def write_ini(gothic_dir, bounds):
         lines += ["", "[CJMOVEMENT]"]
         start = len(lines) - 1
     end = next((i for i in range(start + 1, len(lines)) if lines[i].strip().startswith("[")), len(lines))
-    section = [l for l in lines[start:end] if not re.match(r"(radarX0|radarZ0|radarX1|radarZ1)=", l)
-               and not l.startswith("; ... world rectangle of the radar map")]
+    keys = re.compile("(" + "|".join(re.escape(p) for p in maps) + ")(X0|Z0|X1|Z1)=")
+    section = [l for l in lines[start:end] if not keys.match(l) and not l.startswith("; ... world rectangle")]
     last = max(i for i, l in enumerate(section) if l.strip())
-    values = [f"radar{k}={v:.0f}" for k, v in zip(("X0", "Z0", "X1", "Z1"), bounds)]
-    section = section[:last + 1] + values + ["; ... world rectangle of the radar map (make_cj_radar.py)"] + section[last + 1:]
+    values = [f"{prefix}{k}={v:.0f}" for prefix, bounds in maps.items() for k, v in zip(("X0", "Z0", "X1", "Z1"), bounds)]
+    note = ("; ... world rectangle of the radar map (make_cj_radar.py)" if len(maps) == 1
+            else "; ... world rectangles of the radar maps (make_cj_radar.py)")
+    section = section[:last + 1] + values + [note] + section[last + 1:]
     lines[start:end] = section
     open(path, "wb").write(nl.join(lines).encode("latin-1"))
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--gothic", default=DEFAULT_GOTHIC, help="Gothic 1 install folder")
-    parser.add_argument("--style", choices=("gothic", "gta"), default="gothic", help="Gothic's map, or one in GTA's radar colours")
+    parser.add_argument("--gothic", default=DEFAULT_GOTHIC, help="Gothic 1 or Gothic 2 install folder")
+    parser.add_argument("--style", choices=("gothic", "gta"), default="gothic",
+                        help="Gothic's map, or one in GTA's radar colours (Gothic 1 only)")
     parser.add_argument("--size", type=int, help="map texture size in pixels (gothic 1024, gta 2048)")
-    parser.add_argument("--preview", help="also save the map as this PNG")
+    parser.add_argument("--preview", help="also save the map as this PNG (Gothic 2: one per world)")
     args = parser.parse_args()
-    if args.style == "gothic":
-        bounds = build_gothic(args.gothic, args.size or 1024, args.preview)
+    if gothic_version(args.gothic) == GOTHIC_2:
+        if args.style == "gta":
+            parser.error("--style gta draws Gothic 1's world mesh; Gothic 2 has the gothic style only")
+        maps = build_gothic2(args.gothic, args.size or 1024, args.preview)
+    elif args.style == "gothic":
+        maps = {"radar": build_gothic(args.gothic, args.size or 1024, args.preview)}
     else:
-        bounds = build(args.gothic, args.size or 2048, args.preview)
-    write_ini(args.gothic, bounds)
+        maps = {"radar": build(args.gothic, args.size or 2048, args.preview)}
+    write_ini(args.gothic, maps)
 
 
 if __name__ == "__main__":

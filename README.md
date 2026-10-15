@@ -1,16 +1,21 @@
 # Gothic Game Mixing
 
-**Gothic 1** mashed up with other games. Gothic 1 is always the base: you play its world and its
-story. The game you combine it with brings its hero, controls, mechanics and content. Choose one:
+**Gothic** mashed up with other games. Gothic is always the base: you play its world and its story,
+in **Gothic 1** or **Gothic 2 Night of the Raven**, your choice. The game you combine it with
+brings its hero, controls, mechanics and content. Choose one:
 
-| Combine Gothic 1 with | You play as | What it brings | Details |
+| Combine Gothic with | You play as | What it brings | Details |
 | --- | --- | --- | --- |
 | **GTA San Andreas** | CJ | GTA's controls, camera and HUD, a radar, GTA weapons, the Sanchez motorbike, CJ's voice | [mashups/gta](mashups/gta/README.md) |
 | **The Witcher 3** | Geralt | The Witcher 3's controls and camera, sword fighting, signs, Geralt's face and voice | [mashups/witcher](mashups/witcher/README.md) |
 
+Gothic 1 is the tested base for both. Gothic 2 Night of the Raven is new: CJ installs into it and
+the game starts with his plugin; playing it is still to be tried
+([status](mashups/gta/README.md#gothic-2-status)). Geralt in Gothic 2 hasn't been tried at all.
+
 This repository contains **no game files** from Gothic, GTA San Andreas or The Witcher 3. The
 installer reads **your own** copy of the game you choose and builds its hero and content straight
-into **your own** Gothic folder. You need legal copies of Gothic 1 and of that game.
+into **your own** Gothic folder. You need legal copies of Gothic and of that game.
 
 > Not affiliated with or endorsed by Piranha Bytes, THQ Nordic, Rockstar Games, Take-Two
 > Interactive or CD PROJEKT RED. All game content belongs to its owners.
@@ -22,7 +27,10 @@ into **your own** Gothic folder. You need legal copies of Gothic 1 and of that g
 * **Windows** with the
   [Microsoft Visual C++ Redistributable (x86)](https://aka.ms/vs/17/release/vc_redist.x86.exe).
   Most PCs already have it.
-* **Gothic 1** from Steam or GOG. A disk edition needs the Gothic 1 Player Kit 1.08k first.
+* **Gothic 1** or **Gothic 2 Night of the Raven**, from Steam or GOG:
+  * Gothic 1: a disk edition needs the Gothic 1 Player Kit 1.08k first.
+  * Gothic 2: the Gold Edition (Gothic II with Night of the Raven, `Gothic2.exe` 2.6). Gothic 2
+    without the addon won't work.
 * The game you combine it with, installed while you install the mod:
   * **GTA San Andreas, classic PC version.** The Definitive Edition won't work: the installer
     needs `models\gta3.img`, `anim\ped.ifp`, `audio\SFX` and `data\handling.cfg`.
@@ -41,10 +49,12 @@ to do it.
 2. Extract **all** its files (`GothicMashupInstaller.exe`, `CJMovement.vdf` and `Witcher.vdf`)
    into the same folder.
 3. Run `GothicMashupInstaller.exe`.
-4. Under **Combine Gothic 1 with**, choose **GTA San Andreas** or **The Witcher 3**.
-5. Pick that game's folder and your **Gothic 1** folder. The installer needs both.
+4. Under **Base game**, choose **Gothic 1** or **Gothic 2 Night of the Raven**, and pick its
+   folder.
+5. Under **Combine it with**, choose **GTA San Andreas** or **The Witcher 3**, and pick that game's
+   folder. The installer needs both folders.
    * Steam usually has them in `C:\Program Files (x86)\Steam\steamapps\common\`, for example
-     `...\common\The Witcher 3` and `...\common\Gothic`.
+     `...\common\Gothic`, `...\common\Gothic II` and `...\common\The Witcher 3`.
    * For Gothic, choose the folder that contains `system` and `Data`. For GTA San Andreas, the one
      with `models` and `anim`. For The Witcher 3, the one with `bin` and `content`.
 6. For The Witcher 3, pick the language Geralt speaks (the dubs your copy has, Polish by default).
@@ -94,7 +104,9 @@ is safe: it updates the mod and puts Union back if it's gone.
 | Still Gothic's controls although Union is installed | Install the [Visual C++ Redistributable (x86)](https://aka.ms/vs/17/release/vc_redist.x86.exe). |
 | **CJMovement.vdf** or **Witcher.vdf was not found next to the installer** | Extract all files from the zip into the same folder. |
 | **Can't write …** / permission error | Gothic is in a protected folder (often GOG in `Program Files`). Run the installer as administrator. |
-| **GothicMod.exe is missing** | That's the wrong folder: pick the one with `system` and `Data` in it. A disk edition needs the Gothic 1 Player Kit 1.08k. |
+| **GothicMod.exe is missing** / **Gothic2.exe is missing** | That's the wrong folder: pick the one with `system` and `Data` in it. A Gothic 1 disk edition needs the Gothic 1 Player Kit 1.08k. |
+| **That folder holds Gothic 2 … not Gothic 1** (or the other way round) | Choose the base game that matches the folder, or the other game's folder. |
+| **Gothic 2 without Night of the Raven** | The mashups need the addon. Gothic II Gold Edition has it. |
 | **… not found in the GTA San Andreas folder** | That isn't the classic PC GTA San Andreas folder. Pick the folder that contains `models` and `anim`. |
 | **… not found in The Witcher 3 folder** | That isn't The Witcher 3's folder, or the game isn't installed any more. Pick the folder that contains `bin` and `content`. |
 | Gothic's hero keeps his own voice | The hero's voice needs ffmpeg. Install it (`winget install Gyan.FFmpeg`), then start the installer again. |
@@ -120,8 +132,11 @@ git clone --recursive https://github.com/Kopselek/gothic-game-mixing.git
 cd gothic-game-mixing
 python tools\install.py --game gta --game-dir "D:\Games\GTA San Andreas" --gothic "C:\Program Files (x86)\Steam\steamapps\common\Gothic"
 python tools\install.py --game witcher --game-dir "D:\Games\The Witcher 3" --gothic "C:\Program Files (x86)\Steam\steamapps\common\Gothic" --lang pl
+python tools\install.py --game gta --game-dir "D:\Games\GTA San Andreas" --gothic "C:\Program Files (x86)\Steam\steamapps\common\Gothic II" --gothic-version 2
 ```
 
+* `--gothic-version 2` installs into Gothic 2 Night of the Raven (the default is 1). The folder
+  has to hold that version.
 * `--gta DIR` is short for `--game gta --game-dir DIR`, and `--w3 DIR` for `--game witcher
   --game-dir DIR`.
 * The plugin is taken from `plugin\out` once you have built it (see
@@ -141,13 +156,21 @@ Every mashup has the same two parts:
 * **A Union plugin** (C++, `mashups/<game>/plugin/src/Plugin.ipp`). It brings the other game's
   mechanics into Gothic's engine: controls, camera, combat, HUD and the rest.
 
+Gothic 1 and Gothic 2 Night of the Raven run on the same engine, ZenGin, in different versions.
+The plugin's code is compiled once for each (union-plugin-template's per-engine build), into one
+DLL that hooks the running game's own functions (gothic-api has both games' addresses). Where the
+two games' content differs, the tools and the plugin pick by version: Gothic 2's animation list
+comes from its compiled model script, its items and its worlds are other ones.
+
 Everything on Gothic's side is shared:
 
 ```text
 tools/              Gothic's side, used by every mashup:
                       install.py, installer_gui.py   the installer (command line and window)
-                      union.py                       download and install Union 1.0m into Gothic 1
+                      gothic.py                      Gothic 1 or Gothic 2: version, exe, HUMANS model script
+                      union.py                       download and install Union 1.0m into Gothic 1 or 2
                       asc, tex, vdf, wav, mesh3ds    Gothic's formats
+                      msb                            read Gothic 2's compiled model scripts back into MDS
                       daedalus, datpatch             read and patch Gothic's compiled scripts (Gothic.dat)
                       png, render                    preview images
 plugin/             the plugins' build (union-plugin-template; the Union libraries are submodules)
@@ -179,10 +202,10 @@ its start files.
 per plugin (`plugin/cmake/add_union_plugin.cmake`). Building needs **Visual Studio 2022+** (or
 Build Tools) with the C++ workload and CMake, plus **git**. The Union libraries are git
 submodules. `plugin\build.bat` finds Visual Studio, fetches the submodules if they're missing, and
-builds:
+builds, each for Gothic 1 and Gothic 2 Night of the Raven (CMake preset `G1-G2A-Release`):
 
-* `plugin\out\build\G1-Release\gta\vdf\CJMovement.vdf`
-* `plugin\out\build\G1-Release\witcher\vdf\Witcher.vdf`
+* `plugin\out\build\G1-G2A-Release\gta\vdf\CJMovement.vdf`
+* `plugin\out\build\G1-G2A-Release\witcher\vdf\Witcher.vdf`
 
 `plugin\build.bat CJMovement` (or `Witcher`) builds only that one. Copy the VDF into
 `<Gothic>\Data` and restart the game.

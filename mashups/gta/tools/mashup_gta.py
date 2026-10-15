@@ -1,4 +1,4 @@
-"""The GTA San Andreas mashup, as the installer (tools/install.py) installs it: Gothic 1 as CJ.
+"""The GTA San Andreas mashup, as the installer (tools/install.py) installs it: Gothic 1 or Gothic 2 as CJ.
 
 Its tools read your GTA San Andreas (classic PC) install and write CJ, his animations, voice,
 weapons, HUD, radar and motorbike into your Gothic folder, and the CJMovement plugin brings GTA's
@@ -126,12 +126,12 @@ def build(args, run):
     run(make_cj_model, *common)
 
 
-def starters():
-    """{start file: (its notes, how it starts GothicMod.exe from system)}; install.py adds the Union check."""
+def starters(exe):
+    """{start file: (its notes, how it starts the game's `exe` from system)}; install.py adds the Union check."""
     return {STARTER: (
         "rem -zautoconvertdata lets Gothic compile CJ's model and animations the first time they are needed;\r\n"
         "rem the path is this folder's own, so the Gothic folder can be moved or copied to another PC\r\n",
-        'start "" GothicMod.exe -zautoconvertdata\r\n')}
+        f'start "" {exe} -zautoconvertdata\r\n')}
 
 
 def selftest():

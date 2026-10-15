@@ -101,7 +101,8 @@
 //   radar=1             draw GTA's radar (with gtaHud)
 //   radarRange=18000    world distance (cm) from the radar's centre to its rim (GTA on foot: 180 m)
 //   radarX0, radarZ0, radarX1, radarZ1   the world rectangle (cm) of the radar map, written by
-//                       make_cj_radar.py
+//                       make_cj_radar.py; in Gothic 2 one per world: radarNewWorldX0 ...,
+//                       radarOldWorldX0 ..., radarAddonWorldX0 ...
 //   bike=1              put GTA's motorbike next to CJ (make_cj_bike.py)
 //   bikeCamDistance=450 the camera's distance behind the bike (cm)
 //   bikeGrip=1          the tyres' grip: 1 = GTA's (fTractionMultiplier on GTA's surface grip)
@@ -122,6 +123,19 @@ namespace GOTHIC_NAMESPACE
 {
 	namespace CJ
 	{
+		// This file is compiled once per engine: Gothic 1 and Gothic 2 Night of the Raven. The engine
+		// calls go through each one's own gothic-api; the scripts' instances and worlds differ.
+		static constexpr bool GOTHIC2 = ENGINE == Engine_G2A;
+
+		// The worlds with a radar map (make_cj_radar.py): Gothic 1's colony; Gothic 2's Khorinis, the
+		// Valley of Mines and Jharkendar. Each has its texture and its world rectangle in [CJMOVEMENT]
+		// as <key>X0, <key>Z0, <key>X1, <key>Z1.
+		static const int RADAR_MAPS = GOTHIC2 ? 3 : 1;
+		static const char* const RADAR_WORLDS[3] = { GOTHIC2 ? "NEWWORLD.ZEN" : "WORLD.ZEN", "OLDWORLD.ZEN", "ADDONWORLD.ZEN" };
+		static const char* const RADAR_TEXTURES[3] = { GOTHIC2 ? "CJ_RADAR_NEWWORLD.TGA" : "CJ_RADAR.TGA",
+		                                               "CJ_RADAR_OLDWORLD.TGA", "CJ_RADAR_ADDONWORLD.TGA" };
+		static const char* const RADAR_KEYS[3] = { GOTHIC2 ? "radarNewWorld" : "radar", "radarOldWorld", "radarAddonWorld" };
+
 		struct Settings
 		{
 			float turnRate = 450.0f;
@@ -150,7 +164,7 @@ namespace GOTHIC_NAMESPACE
 			float maxFrameTime = 40.0f;
 			bool radar = true;
 			float radarRange = 18000.0f;
-			float radarX0 = 0.0f, radarZ0 = 0.0f, radarX1 = 0.0f, radarZ1 = 0.0f;
+			float radarBounds[3][4] = {}; // x0, z0, x1, z1 of each of RADAR_WORLDS' maps
 			bool gtaClock = true;
 			bool wastedCam = true;
 			float wastedHeight = 1500.0f;
@@ -225,10 +239,13 @@ namespace GOTHIC_NAMESPACE
 		static const float AIM_GAIN = 0.5f;               // share of the barrel's error corrected per frame
 		static float aimX = 0.5f, aimY = 0.5f;            // the pose blend (combine X/Y)
 		static const float CROSSHAIR_X = 0.53f, CROSSHAIR_Y = 0.4f; // share of the screen
-		// The guns (make_cj_pistol.py), Gothic's crossbows, each with its ammunition and clip.
+		// The guns (make_cj_pistol.py), Gothic's crossbows, each with its ammunition and clip. The
+		// instances are the ones make_cj_pistol.py patches (ITEMS there), Gothic 2's being others.
 		enum { GUN_NONE = -1, GUN_PISTOL, GUN_ROCKET, GUNS };
-		static const char* const GUN_ITEMS[GUNS] = { "ITRW_CROSSBOW_01", "ITRW_CROSSBOW_02" };
-		static const char* const GUN_AMMO[GUNS] = { "ITAMBOLT", "ITMI_ALCHEMY_SYRIANOIL_01" };
+		static const char* const GUN_ITEMS[GUNS] = { GOTHIC2 ? "ITRW_CROSSBOW_L_01" : "ITRW_CROSSBOW_01",
+		                                             GOTHIC2 ? "ITRW_CROSSBOW_H_01" : "ITRW_CROSSBOW_02" };
+		static const char* const GUN_AMMO[GUNS] = { GOTHIC2 ? "ITRW_BOLT" : "ITAMBOLT",
+		                                            GOTHIC2 ? "ITMI_IECELLOBOW" : "ITMI_ALCHEMY_SYRIANOIL_01" };
 		static const int GUN_CLIP[GUNS] = { CLIP, 1 };    // weapon.dat ammoClip of PISTOL and RLAUNCHER
 		static const char* const GUN_NAMES[GUNS] = { "pistol", "rocket launcher" };
 		static int gunIndex[GUNS] = { -1, -1 }, gunAmmo[GUNS] = { -1, -1 }; // their script instances
@@ -237,11 +254,11 @@ namespace GOTHIC_NAMESPACE
 		static int pendingGun = -2;          // the gun to draw once the weapon in hand is away (-1 none)
 		static float pendingSince = 0.0f;
 		static bool switchKeyHeld = false;
-		// The purple dildo (make_cj_pistol.py turns Jackal's unused sword into it): drawn in Gothic's
-		// one-handed mode, swung with the fists' click controls. In the weapon cycle it comes after
-		// the guns (GTA's slot 10, the gifts).
+		// The purple dildo (make_cj_pistol.py turns Jackal's unused sword into it, in Gothic 2 Skinner's
+		// Betty): drawn in Gothic's one-handed mode, swung with the fists' click controls. In the weapon
+		// cycle it comes after the guns (GTA's slot 10, the gifts).
 		static const int WEAPON_DILDO = GUNS;
-		static const char* const DILDO_ITEM = "JACKALSSWORD";
+		static const char* const DILDO_ITEM = GOTHIC2 ? "ITMW_ADDON_BETTY" : "JACKALSSWORD";
 		static int dildoIndex = -1;
 		// s_1hAttack's combo windows (make_cj_model.py's DEF_WINDOW tags: frames 9-24, 37-53, 65-83 at 25 fps)
 		static const float DILDO_WINDOWS[3][2] = { { 0.36f, 0.96f }, { 1.48f, 2.12f }, { 2.60f, 3.32f } };
@@ -306,10 +323,14 @@ namespace GOTHIC_NAMESPACE
 			settings.maxFrameTime = zoptions->ReadReal(section, "maxFrameTime", settings.maxFrameTime);
 			settings.radar = zoptions->ReadBool(section, "radar", 1) != 0;
 			settings.radarRange = zoptions->ReadReal(section, "radarRange", settings.radarRange);
-			settings.radarX0 = zoptions->ReadReal(section, "radarX0", settings.radarX0);
-			settings.radarZ0 = zoptions->ReadReal(section, "radarZ0", settings.radarZ0);
-			settings.radarX1 = zoptions->ReadReal(section, "radarX1", settings.radarX1);
-			settings.radarZ1 = zoptions->ReadReal(section, "radarZ1", settings.radarZ1);
+			for (int i = 0; i < RADAR_MAPS; i++)
+				for (int k = 0; k < 4; k++)
+				{
+					static const char* const CORNERS[4] = { "X0", "Z0", "X1", "Z1" };
+					char key[64];
+					snprintf(key, sizeof key, "%s%s", RADAR_KEYS[i], CORNERS[k]);
+					settings.radarBounds[i][k] = zoptions->ReadReal(section, key, settings.radarBounds[i][k]);
+				}
 			settings.gtaClock = zoptions->ReadBool(section, "gtaClock", 1) != 0;
 			settings.wastedCam = zoptions->ReadBool(section, "wastedCam", 1) != 0;
 			settings.wastedHeight = zoptions->ReadReal(section, "wastedHeight", settings.wastedHeight);
@@ -4085,7 +4106,7 @@ namespace GOTHIC_NAMESPACE
 	//    every steep path. The angles (radians, compared with acos of the floor normal) are raised
 	//    to slopeWalk / slopeSlide degrees, never lowered.
 	void __fastcall zCAIPlayer_PropagateCollObjectStates(zCAIPlayer* self, void* vtable, int state);
-	auto Hook_zCAIPlayer_PropagateCollObjectStates = Union::CreateHook(reinterpret_cast<void*>(0x004FE610),
+	auto Hook_zCAIPlayer_PropagateCollObjectStates = Union::CreateHook(SIGNATURE_OF(&zCAIPlayer::PropagateCollObjectStates),
 		&zCAIPlayer_PropagateCollObjectStates, Union::HookType::Hook_Detours);
 	void __fastcall zCAIPlayer_PropagateCollObjectStates(zCAIPlayer* self, void* vtable, int state)
 	{
@@ -4120,7 +4141,7 @@ namespace GOTHIC_NAMESPACE
 	// slows down through the stutter instead of CJ (or the bike) leaping. The longest recent frame
 	// goes into the fall log.
 	void __fastcall zCTimer_ResetTimer(zCTimer* self, void* vtable);
-	auto Hook_zCTimer_ResetTimer = Union::CreateHook(reinterpret_cast<void*>(0x005CE550), &zCTimer_ResetTimer, Union::HookType::Hook_Detours);
+	auto Hook_zCTimer_ResetTimer = Union::CreateHook(SIGNATURE_OF(&zCTimer::ResetTimer), &zCTimer_ResetTimer, Union::HookType::Hook_Detours);
 	void __fastcall zCTimer_ResetTimer(zCTimer* self, void* vtable)
 	{
 		Hook_zCTimer_ResetTimer(self, vtable);
@@ -4144,7 +4165,7 @@ namespace GOTHIC_NAMESPACE
 
 	// A new game, or a savegame loaded: see CJ::NewGame.
 	void __fastcall oCGame_LoadGame(oCGame* self, void* vtable, int slot, zSTRING const& level);
-	auto Hook_oCGame_LoadGame = Union::CreateHook(reinterpret_cast<void*>(0x0063C070), &oCGame_LoadGame, Union::HookType::Hook_Detours);
+	auto Hook_oCGame_LoadGame = Union::CreateHook(SIGNATURE_OF(&oCGame::LoadGame), &oCGame_LoadGame, Union::HookType::Hook_Detours);
 	void __fastcall oCGame_LoadGame(oCGame* self, void* vtable, int slot, zSTRING const& level)
 	{
 		CJ::NewGame();
@@ -4152,7 +4173,7 @@ namespace GOTHIC_NAMESPACE
 	}
 
 	void __fastcall oCGame_LoadSavegame(oCGame* self, void* vtable, int slot, int loadGlobals);
-	auto Hook_oCGame_LoadSavegame = Union::CreateHook(reinterpret_cast<void*>(0x0063C2A0), &oCGame_LoadSavegame, Union::HookType::Hook_Detours);
+	auto Hook_oCGame_LoadSavegame = Union::CreateHook(SIGNATURE_OF(&oCGame::LoadSavegame), &oCGame_LoadSavegame, Union::HookType::Hook_Detours);
 	void __fastcall oCGame_LoadSavegame(oCGame* self, void* vtable, int slot, int loadGlobals)
 	{
 		CJ::NewGame();
@@ -4161,7 +4182,7 @@ namespace GOTHIC_NAMESPACE
 
 	// The hero's AI reads its controls inside DoAI; overrides apply only during that call.
 	void __fastcall oCAIHuman_DoAI(oCAIHuman* self, void* vtable, zCVob* vob, int& vobDeleted);
-	auto Hook_oCAIHuman_DoAI = Union::CreateHook(reinterpret_cast<void*>(0x00615A50), &oCAIHuman_DoAI, Union::HookType::Hook_Detours);
+	auto Hook_oCAIHuman_DoAI = Union::CreateHook(SIGNATURE_OF(&oCAIHuman::DoAI), &oCAIHuman_DoAI, Union::HookType::Hook_Detours);
 	void __fastcall oCAIHuman_DoAI(oCAIHuman* self, void* vtable, zCVob* vob, int& vobDeleted)
 	{
 		oCNpc* hero = oCNpc::player;
@@ -4296,7 +4317,7 @@ namespace GOTHIC_NAMESPACE
 	}
 
 	float __fastcall zCInput_Win32_GetState(zCInput_Win32* self, void* vtable, unsigned short key);
-	auto Hook_zCInput_Win32_GetState = Union::CreateHook(reinterpret_cast<void*>(0x004C8310), &zCInput_Win32_GetState, Union::HookType::Hook_Detours);
+	auto Hook_zCInput_Win32_GetState = Union::CreateHook(SIGNATURE_OF(&zCInput_Win32::GetState), &zCInput_Win32_GetState, Union::HookType::Hook_Detours);
 	float __fastcall zCInput_Win32_GetState(zCInput_Win32* self, void* vtable, unsigned short key)
 	{
 		float state;
@@ -4305,7 +4326,7 @@ namespace GOTHIC_NAMESPACE
 	}
 
 	int __fastcall zCInput_Win32_GetToggled(zCInput_Win32* self, void* vtable, unsigned short key);
-	auto Hook_zCInput_Win32_GetToggled = Union::CreateHook(reinterpret_cast<void*>(0x004C8630), &zCInput_Win32_GetToggled, Union::HookType::Hook_Detours);
+	auto Hook_zCInput_Win32_GetToggled = Union::CreateHook(SIGNATURE_OF(&zCInput_Win32::GetToggled), &zCInput_Win32_GetToggled, Union::HookType::Hook_Detours);
 	int __fastcall zCInput_Win32_GetToggled(zCInput_Win32* self, void* vtable, unsigned short key)
 	{
 		float state;
@@ -4325,7 +4346,7 @@ namespace GOTHIC_NAMESPACE
 	}
 
 	int __fastcall zCInput_Win32_KeyPressed(zCInput_Win32* self, void* vtable, int key);
-	auto Hook_zCInput_Win32_KeyPressed = Union::CreateHook(reinterpret_cast<void*>(0x004C87A0), &zCInput_Win32_KeyPressed, Union::HookType::Hook_Detours);
+	auto Hook_zCInput_Win32_KeyPressed = Union::CreateHook(SIGNATURE_OF(&zCInput_Win32::KeyPressed), &zCInput_Win32_KeyPressed, Union::HookType::Hook_Detours);
 	int __fastcall zCInput_Win32_KeyPressed(zCInput_Win32* self, void* vtable, int key)
 	{
 		if (ForwardKey(key))
@@ -4334,7 +4355,7 @@ namespace GOTHIC_NAMESPACE
 	}
 
 	int __fastcall zCInput_Win32_KeyToggled(zCInput_Win32* self, void* vtable, int key);
-	auto Hook_zCInput_Win32_KeyToggled = Union::CreateHook(reinterpret_cast<void*>(0x004C87B0), &zCInput_Win32_KeyToggled, Union::HookType::Hook_Detours);
+	auto Hook_zCInput_Win32_KeyToggled = Union::CreateHook(SIGNATURE_OF(&zCInput_Win32::KeyToggled), &zCInput_Win32_KeyToggled, Union::HookType::Hook_Detours);
 	int __fastcall zCInput_Win32_KeyToggled(zCInput_Win32* self, void* vtable, int key)
 	{
 		if (ForwardKey(key))
@@ -4343,7 +4364,7 @@ namespace GOTHIC_NAMESPACE
 	}
 
 	int __fastcall zCInput_Win32_GetMouseButtonPressedLeft(zCInput_Win32* self, void* vtable);
-	auto Hook_zCInput_Win32_GetMouseButtonPressedLeft = Union::CreateHook(reinterpret_cast<void*>(0x004C8C30), &zCInput_Win32_GetMouseButtonPressedLeft, Union::HookType::Hook_Detours);
+	auto Hook_zCInput_Win32_GetMouseButtonPressedLeft = Union::CreateHook(SIGNATURE_OF(&zCInput_Win32::GetMouseButtonPressedLeft), &zCInput_Win32_GetMouseButtonPressedLeft, Union::HookType::Hook_Detours);
 	int __fastcall zCInput_Win32_GetMouseButtonPressedLeft(zCInput_Win32* self, void* vtable)
 	{
 		if (CJ::meleeAttack && CJ::comboTime > 0.0f)
@@ -4354,7 +4375,7 @@ namespace GOTHIC_NAMESPACE
 	// Gothic turns the hero with the mouse and A/D here; with GTA controls CJ turns towards
 	// the camera-relative direction instead.
 	void __fastcall oCAIHuman_PC_Turnings(oCAIHuman* self, void* vtable, int force);
-	auto Hook_oCAIHuman_PC_Turnings = Union::CreateHook(reinterpret_cast<void*>(0x00614800), &oCAIHuman_PC_Turnings, Union::HookType::Hook_Detours);
+	auto Hook_oCAIHuman_PC_Turnings = Union::CreateHook(SIGNATURE_OF(&oCAIHuman::PC_Turnings), &oCAIHuman_PC_Turnings, Union::HookType::Hook_Detours);
 	void __fastcall oCAIHuman_PC_Turnings(oCAIHuman* self, void* vtable, int force)
 	{
 		if (!CJ::overrideInput)
@@ -4362,7 +4383,7 @@ namespace GOTHIC_NAMESPACE
 	}
 
 	void __fastcall zCAICamera_DoAI(zCAICamera* self, void* vtable, zCVob* vob, int& vobDeleted);
-	auto Hook_zCAICamera_DoAI = Union::CreateHook(reinterpret_cast<void*>(0x0049D6A0), &zCAICamera_DoAI, Union::HookType::Hook_Detours);
+	auto Hook_zCAICamera_DoAI = Union::CreateHook(SIGNATURE_OF(&zCAICamera::DoAI), &zCAICamera_DoAI, Union::HookType::Hook_Detours);
 	void __fastcall zCAICamera_DoAI(zCAICamera* self, void* vtable, zCVob* vob, int& vobDeleted)
 	{
 		Hook_zCAICamera_DoAI(self, vtable, vob, vobDeleted);
@@ -4653,7 +4674,7 @@ namespace GOTHIC_NAMESPACE
 			clock.Set(text, LIGHT_GRAY, 640.0f - 32.0f, 22.0f);
 
 			if (oreIndex < 0 && parser)
-				oreIndex = parser->GetIndex("ITMINUGGET");
+				oreIndex = parser->GetIndex(GOTHIC2 ? "ITMI_GOLD" : "ITMINUGGET"); // the money: Gothic 1's ore, Gothic 2's gold
 			int ore = oreIndex >= 0 ? hero->inventory2.GetAmount(oreIndex) : 0;
 			// The counter rolls towards the amount, as GTA's does (CPlayerInfo::Process in GTA III and
 			// VC, re3; SA keeps it): per 1/30 s tick by 12345, 1234, 123, 42 or 1 by how far off it is.
@@ -4752,7 +4773,8 @@ namespace GOTHIC_NAMESPACE
 				return texture;
 			}
 		};
-		static Texture mapTexture = { "CJ_RADAR.TGA" }, discTexture = { "CJ_HUD_RADARDISC.TGA" },
+		static Texture mapTextures[3] = { { RADAR_TEXTURES[0] }, { RADAR_TEXTURES[1] }, { RADAR_TEXTURES[2] } };
+		static Texture discTexture = { "CJ_HUD_RADARDISC.TGA" },
 			centreTexture = { "CJ_HUD_RADAR_CENTRE.TGA" }, northTexture = { "CJ_HUD_RADAR_NORTH.TGA" },
 			whiteTexture = { "CJ_HUD_WHITE.TGA" };
 
@@ -4822,10 +4844,11 @@ namespace GOTHIC_NAMESPACE
 		}
 
 		// Only WORLD.ZEN has a map.
-		static bool MapWorld(oCNpc* hero)
+		// The radar map (index into RADAR_WORLDS) of the hero's world, -1 if it has none.
+		static int MapWorld(oCNpc* hero)
 		{
 			static zCWorld* known = nullptr;
-			static bool mapped = false;
+			static int mapped = -1;
 			zCWorld* world = hero->GetHomeWorld();
 			if (world != known)
 			{
@@ -4835,10 +4858,19 @@ namespace GOTHIC_NAMESPACE
 				file.Upper();
 				const char* name = file.ToChar();
 				size_t n = strlen(name);
-				mapped = n >= 9 && strcmp(name + n - 9, "WORLD.ZEN") == 0 && (n == 9 || name[n - 10] == '\\' || name[n - 10] == '/');
-				Log("radar: world %s, %s", name, mapped ? "map" : "no map");
+				mapped = -1;
+				for (int i = 0; i < RADAR_MAPS && mapped < 0; i++)
+				{
+					size_t m = strlen(RADAR_WORLDS[i]); // the file name itself, not one ending in it (NEWWORLD.ZEN in WORLD.ZEN)
+					if (n >= m && strcmp(name + n - m, RADAR_WORLDS[i]) == 0 && (n == m || name[n - m - 1] == '\\' || name[n - m - 1] == '/'))
+						mapped = i;
+				}
+				Log("radar: world %s, %s", name, mapped >= 0 ? "map" : "no map");
 			}
-			return mapped && settings.radarX1 > settings.radarX0 && settings.radarZ1 > settings.radarZ0;
+			if (mapped < 0)
+				return -1;
+			const float* b = settings.radarBounds[mapped];
+			return b[2] > b[0] && b[3] > b[1] ? mapped : -1;
 		}
 
 		static void Draw()
@@ -4875,16 +4907,18 @@ namespace GOTHIC_NAMESPACE
 			zrenderer->SetFog(FALSE);
 
 			// the map: fans from the centre, each vertex at the world point it shows
-			bool map = MapWorld(hero);
-			zCTexture* mapTex = map ? mapTexture.Get() : nullptr;
-			float spanX = settings.radarX1 - settings.radarX0, spanZ = settings.radarZ1 - settings.radarZ0;
+			int mapIndex = MapWorld(hero);
+			bool map = mapIndex >= 0;
+			zCTexture* mapTex = map ? mapTextures[mapIndex].Get() : nullptr;
+			const float* bounds = settings.radarBounds[map ? mapIndex : 0];
+			float spanX = bounds[2] - bounds[0], spanZ = bounds[3] - bounds[1];
 			auto vertex = [&](float rx, float ry, float* xy, float* uv)
 			{
 				xy[0] = (CX + rx * RX) * pxX;
 				xy[1] = (CY + ry * RY) * pxY;
 				zVEC3 world = centre + right * (rx * range) - forward * (ry * range);
-				uv[0] = map ? (world[0] - settings.radarX0) / spanX : 0.5f;
-				uv[1] = map ? (settings.radarZ1 - world[2]) / spanZ : 0.5f;
+				uv[0] = map ? (world[0] - bounds[0]) / spanX : 0.5f;
+				uv[1] = map ? (bounds[3] - world[2]) / spanZ : 0.5f;
 			};
 			const int PER_FAN = 8;
 			for (int first = 0; first < SEGMENTS; first += PER_FAN)
@@ -4950,7 +4984,7 @@ namespace GOTHIC_NAMESPACE
 	}
 
 	void __fastcall zCView_DrawItems(zCView* self, void* vtable);
-	auto Hook_zCView_DrawItems = Union::CreateHook(reinterpret_cast<void*>(0x006FCBD0), &zCView_DrawItems, Union::HookType::Hook_Detours);
+	auto Hook_zCView_DrawItems = Union::CreateHook(SIGNATURE_OF(&zCView::DrawItems), &zCView_DrawItems, Union::HookType::Hook_Detours);
 	void __fastcall zCView_DrawItems(zCView* self, void* vtable)
 	{
 		if (self == screen)
@@ -4962,7 +4996,7 @@ namespace GOTHIC_NAMESPACE
 	// Gothic's world timer adds the frame time to the time of day, an hour being 250000 ms; with
 	// gtaClock it adds 250000 / 60000 times as much.
 	void __fastcall oCWorldTimer_Timer(oCWorldTimer* self, void* vtable);
-	auto Hook_oCWorldTimer_Timer = Union::CreateHook(reinterpret_cast<void*>(0x006D7B40), &oCWorldTimer_Timer, Union::HookType::Hook_Detours);
+	auto Hook_oCWorldTimer_Timer = Union::CreateHook(SIGNATURE_OF(&oCWorldTimer::Timer), &oCWorldTimer_Timer, Union::HookType::Hook_Detours);
 	void __fastcall oCWorldTimer_Timer(oCWorldTimer* self, void* vtable)
 	{
 		CJ::LoadSettings();
@@ -4973,7 +5007,7 @@ namespace GOTHIC_NAMESPACE
 
 	// Gothic's own health, mana and breath bars give way to the GTA HUD.
 	void __fastcall oCGame_UpdatePlayerStatus(oCGame* self, void* vtable);
-	auto Hook_oCGame_UpdatePlayerStatus = Union::CreateHook(reinterpret_cast<void*>(0x00638F90), &oCGame_UpdatePlayerStatus, Union::HookType::Hook_Detours);
+	auto Hook_oCGame_UpdatePlayerStatus = Union::CreateHook(SIGNATURE_OF(&oCGame::UpdatePlayerStatus), &oCGame_UpdatePlayerStatus, Union::HookType::Hook_Detours);
 	void __fastcall oCGame_UpdatePlayerStatus(oCGame* self, void* vtable)
 	{
 		Hook_oCGame_UpdatePlayerStatus(self, vtable);
@@ -4984,7 +5018,7 @@ namespace GOTHIC_NAMESPACE
 	}
 
 	void __fastcall oCGame_Render(oCGame* self, void* vtable);
-	auto Hook_oCGame_Render = Union::CreateHook(reinterpret_cast<void*>(0x0063DBE0), &oCGame_Render, Union::HookType::Hook_Detours);
+	auto Hook_oCGame_Render = Union::CreateHook(SIGNATURE_OF(&oCGame::Render), &oCGame_Render, Union::HookType::Hook_Detours);
 	void __fastcall oCGame_Render(oCGame* self, void* vtable)
 	{
 		CJ::Hud::Update();
@@ -5000,7 +5034,7 @@ namespace GOTHIC_NAMESPACE
 	// of its blunt protection so the amount gets through; Gothic then applies it as usual (knock-out,
 	// death, reactions). Whoever the dildo hits hears GTA's dildo hit and runs from CJ.
 	void __fastcall oCNpc_OnDamage_Hit(oCNpc* self, void* vtable, oCNpc::oSDamageDescriptor& desc);
-	auto Hook_oCNpc_OnDamage_Hit = Union::CreateHook(reinterpret_cast<void*>(0x00731410), &oCNpc_OnDamage_Hit, Union::HookType::Hook_Detours);
+	auto Hook_oCNpc_OnDamage_Hit = Union::CreateHook(SIGNATURE_OF(&oCNpc::OnDamage_Hit), &oCNpc_OnDamage_Hit, Union::HookType::Hook_Detours);
 	void __fastcall oCNpc_OnDamage_Hit(oCNpc* self, void* vtable, oCNpc::oSDamageDescriptor& desc)
 	{
 		oCNpc* hero = oCNpc::player;

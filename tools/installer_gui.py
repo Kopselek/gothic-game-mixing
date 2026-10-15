@@ -44,42 +44,64 @@ class InstallerApp:
     def __init__(self, root: tk.Tk):
         self.root = root
         self.root.title(APP_NAME)
-        self.root.geometry("760x560")
-        self.root.minsize(660, 500)
+        self.root.geometry("780x600")
+        self.root.minsize(680, 540)
 
         self.output_queue: queue.Queue[str] = queue.Queue()
         self.running = False
 
+        self.version_var = tk.IntVar(value=install.GOTHIC_1)
         self.game_var = tk.StringVar(value=next(iter(install.MASHUPS)))
-        # each game keeps its own folder, so switching back and forth loses nothing
+        # each choice keeps its own folder, so switching back and forth loses nothing
+        self.gothic_dirs = {version: tk.StringVar() for version in install.TITLE}
         self.game_dirs = {name: tk.StringVar() for name in install.MASHUPS}
-        self.gothic_var = tk.StringVar()
         self.lang_var = tk.StringVar()
-        self.status_var = tk.StringVar(value="Choose the game, select both game folders, then click Install.")
+        self.status_var = tk.StringVar(value="Choose Gothic and the game, select both folders, then click Install.")
 
         main = ttk.Frame(root, padding=16)
         main.pack(fill="both", expand=True)
         main.columnconfigure(1, weight=1)
-        main.rowconfigure(7, weight=1)
+        main.rowconfigure(8, weight=1)
 
         ttk.Label(
             main,
-            text="Gothic 1 mashups",
+            text="Gothic mashups",
             font=("Segoe UI", 15, "bold"),
         ).grid(row=0, column=0, columnspan=3, sticky="w", pady=(0, 6))
         ttk.Label(
             main,
-            text="Gothic 1 is the base. Choose the game to combine it with, then select your existing "
-                 "folders of both games. The installer does not include either game.",
-            wraplength=700,
+            text="Choose the Gothic to play, Gothic 1 or Gothic 2 Night of the Raven, and the game to combine "
+                 "it with, then select your existing folders of both games. The installer does not include "
+                 "either game.",
+            wraplength=720,
         ).grid(row=1, column=0, columnspan=3, sticky="w", pady=(0, 16))
 
-        ttk.Label(main, text="Combine Gothic 1 with").grid(
+        ttk.Label(main, text="Base game").grid(
             row=2, column=0, sticky="w", padx=(0, 10), pady=5
         )
+        versions = ttk.Frame(main)
+        versions.grid(row=2, column=1, columnspan=2, sticky="w", pady=5)
+        self.choice_buttons = []
+        for version, title in install.TITLE.items():
+            button = ttk.Radiobutton(
+                versions, text=title, value=version, variable=self.version_var, command=self.show_base
+            )
+            button.pack(side="left", padx=(0, 18))
+            self.choice_buttons.append(button)
+
+        self.gothic_label = ttk.Label(main)
+        self.gothic_label.grid(row=3, column=0, sticky="w", padx=(0, 10), pady=5)
+        self.gothic_entry = ttk.Entry(main)
+        self.gothic_entry.grid(row=3, column=1, sticky="ew", pady=5)
+        ttk.Button(main, text="Browse…", command=self.choose_gothic).grid(
+            row=3, column=2, padx=(8, 0), pady=5
+        )
+
+        ttk.Label(main, text="Combine it with").grid(
+            row=4, column=0, sticky="w", padx=(0, 10), pady=(14, 5)
+        )
         games = ttk.Frame(main)
-        games.grid(row=2, column=1, columnspan=2, sticky="w", pady=5)
-        self.game_buttons = []
+        games.grid(row=4, column=1, columnspan=2, sticky="w", pady=(14, 5))
         for mashup in install.MASHUPS.values():
             button = ttk.Radiobutton(
                 games,
@@ -89,43 +111,33 @@ class InstallerApp:
                 command=self.show_game,
             )
             button.pack(side="left", padx=(0, 18))
-            self.game_buttons.append(button)
+            self.choice_buttons.append(button)
 
         self.game_label = ttk.Label(main)
-        self.game_label.grid(row=3, column=0, sticky="w", padx=(0, 10), pady=5)
+        self.game_label.grid(row=5, column=0, sticky="w", padx=(0, 10), pady=5)
         self.game_entry = ttk.Entry(main)
-        self.game_entry.grid(row=3, column=1, sticky="ew", pady=5)
+        self.game_entry.grid(row=5, column=1, sticky="ew", pady=5)
         ttk.Button(main, text="Browse…", command=self.choose_game_dir).grid(
-            row=3, column=2, padx=(8, 0), pady=5
-        )
-
-        ttk.Label(main, text="Gothic 1 folder").grid(
-            row=4, column=0, sticky="w", padx=(0, 10), pady=5
-        )
-        ttk.Entry(main, textvariable=self.gothic_var).grid(
-            row=4, column=1, sticky="ew", pady=5
-        )
-        ttk.Button(main, text="Browse…", command=self.choose_gothic).grid(
-            row=4, column=2, padx=(8, 0), pady=5
+            row=5, column=2, padx=(8, 0), pady=5
         )
 
         # only for a mashup whose hero speaks a dub you choose (The Witcher 3)
         self.lang_label = ttk.Label(main)
-        self.lang_label.grid(row=5, column=0, sticky="w", padx=(0, 10), pady=5)
+        self.lang_label.grid(row=6, column=0, sticky="w", padx=(0, 10), pady=5)
         self.lang_box = ttk.Combobox(main, textvariable=self.lang_var, width=8, state="readonly")
-        self.lang_box.grid(row=5, column=1, sticky="w", pady=5)
+        self.lang_box.grid(row=6, column=1, sticky="w", pady=5)
 
         ttk.Label(main, text="Installer log").grid(
-            row=6, column=0, columnspan=3, sticky="w", pady=(14, 5)
+            row=7, column=0, columnspan=3, sticky="w", pady=(14, 5)
         )
         self.log = tk.Text(main, height=12, wrap="word", state="disabled")
-        self.log.grid(row=7, column=0, columnspan=3, sticky="nsew")
+        self.log.grid(row=8, column=0, columnspan=3, sticky="nsew")
         scrollbar = ttk.Scrollbar(main, orient="vertical", command=self.log.yview)
-        scrollbar.grid(row=7, column=3, sticky="ns")
+        scrollbar.grid(row=8, column=3, sticky="ns")
         self.log.configure(yscrollcommand=scrollbar.set)
 
         bottom = ttk.Frame(main)
-        bottom.grid(row=8, column=0, columnspan=3, sticky="ew", pady=(12, 0))
+        bottom.grid(row=9, column=0, columnspan=3, sticky="ew", pady=(12, 0))
         bottom.columnconfigure(0, weight=1)
         ttk.Label(bottom, textvariable=self.status_var).grid(
             row=0, column=0, sticky="w"
@@ -138,6 +150,7 @@ class InstallerApp:
             row=0, column=2, sticky="e", padx=(8, 0)
         )
 
+        self.show_base()
         self.show_game()
         self.root.after(100, self.poll_output)
 
@@ -158,6 +171,12 @@ class InstallerApp:
             self.lang_label.grid_remove()
             self.lang_box.grid_remove()
 
+    def show_base(self) -> None:
+        """The Gothic folder row for the chosen Gothic."""
+        version = self.version_var.get()
+        self.gothic_label.configure(text=f"Gothic {version} folder")
+        self.gothic_entry.configure(textvariable=self.gothic_dirs[version])
+
     def update_dubs(self) -> None:
         mashup = self.mashup()
         langs = mashup.dubs(self.game_dirs[mashup.NAME].get().strip()) or [mashup.DEFAULT_LANG]
@@ -175,9 +194,10 @@ class InstallerApp:
                 self.update_dubs()
 
     def choose_gothic(self) -> None:
-        path = filedialog.askdirectory(title="Select the Gothic 1 folder")
+        version = self.version_var.get()
+        path = filedialog.askdirectory(title=f"Select the {install.TITLE[version]} folder (the one with system and Data)")
         if path:
-            self.gothic_var.set(path)
+            self.gothic_dirs[version].set(path)
 
     def append_log(self, text: str) -> None:
         self.log.configure(state="normal")
@@ -197,17 +217,17 @@ class InstallerApp:
         if self.running:
             return
 
-        mashup = self.mashup()
+        mashup, version = self.mashup(), self.version_var.get()
         game_dir = self.game_dirs[mashup.NAME].get().strip()
-        gothic = self.gothic_var.get().strip()
+        gothic = self.gothic_dirs[version].get().strip()
         lang = (self.lang_var.get().strip() or mashup.DEFAULT_LANG) if mashup.DEFAULT_LANG else None
         plugin = install.find_plugin(mashup, release_dir())
 
+        if not gothic or not os.path.isdir(gothic):
+            messagebox.showerror(APP_NAME, f"Select your {install.TITLE[version]} folder (the one with system and Data).")
+            return
         if not game_dir or not os.path.isdir(game_dir):
             messagebox.showerror(APP_NAME, f"Select your {mashup.TITLE} folder: {mashup.GAME_FOLDER}.")
-            return
-        if not gothic or not os.path.isdir(gothic):
-            messagebox.showerror(APP_NAME, "Select a valid Gothic 1 folder.")
             return
         if not plugin:
             messagebox.showerror(
@@ -219,7 +239,8 @@ class InstallerApp:
             return
 
         # everything but Union first, so a wrong folder isn't met with an offer to install Union into it
-        problems = install.check(gothic, mashup.NAME, game_dir, install_union=not union.installed(gothic), lang=lang)
+        problems = install.check(gothic, mashup.NAME, game_dir, install_union=not union.installed(gothic), lang=lang,
+                                 version=version)
         if problems:
             messagebox.showerror(APP_NAME, "Can't install:\n\n- " + "\n- ".join(problems))
             return
@@ -233,7 +254,8 @@ class InstallerApp:
         ):
             return
 
-        argv = ["--game", mashup.NAME, "--game-dir", game_dir, "--gothic", gothic, "--plugin", plugin]
+        argv = ["--game", mashup.NAME, "--game-dir", game_dir, "--gothic", gothic, "--gothic-version", str(version),
+                "--plugin", plugin]
         if lang:
             argv += ["--lang", lang]
         if not union.installed(gothic):
@@ -246,7 +268,7 @@ class InstallerApp:
             ):
                 messagebox.showinfo(
                     APP_NAME,
-                    f"Install Union 1.0m for Gothic 1 yourself ({union.UNION_THREAD}), "
+                    f"Install Union 1.0m for {install.TITLE[version]} yourself ({union.UNION_THREAD}), "
                     "then click Install again.",
                 )
                 return
@@ -254,10 +276,10 @@ class InstallerApp:
 
         self.running = True
         self.install_button.configure(state="disabled")
-        for button in self.game_buttons:
+        for button in self.choice_buttons:
             button.configure(state="disabled")
         self.status_var.set(f"Installing {mashup.TITLE}… (this takes several minutes)")
-        self.append_log(f"Starting installation: Gothic 1 + {mashup.TITLE}…\n")
+        self.append_log(f"Starting installation: {install.TITLE[version]} + {mashup.TITLE}…\n")
 
         thread = threading.Thread(target=self.run_installer, args=(argv,), daemon=True)
         thread.start()
@@ -283,7 +305,7 @@ class InstallerApp:
     def finish(self, success: bool) -> None:
         self.running = False
         self.install_button.configure(state="normal")
-        for button in self.game_buttons:
+        for button in self.choice_buttons:
             button.configure(state="normal")
         if success:
             self.status_var.set("Installation finished.")

@@ -39,7 +39,7 @@ sys.path.insert(1, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."
 from asc import write_animation
 from cr2w import CR2W
 from daedalus import Script
-from vdf import VdfReader
+from gothic import humans_mds, root_motion
 from w3anim import AnimationSet
 from w3bundle import W3Install
 from w3mimic import compose
@@ -246,6 +246,9 @@ BLENDS = [("t_SneakR_2_Sneak", "s_Sneak"), ("t_Run_2_Walk", "s_Walk"), ("t_Walk_
 # two-handed, bow, crossbow and magic modes are left out (Geralt fights with his sword and signs),
 # and so are Gothic's own ways of moving that the Witcher plugin replaces.
 SKIP_GOTHIC = re.compile(r"(^|_)(2h|bow|cbow|mag)|slide|turn|strafe|jump|hang|fall|swim|dive|walkw|walkb|runb|sneakb", re.I)
+# The ladder's animations, whose stand-ins move like Gothic's hero (gothic_animations): its climbs are
+# fly animations, and the way on and off keeps him where they start and end.
+LADDER = re.compile(r"(^|_)Ladder_", re.I)
 
 
 # --- maths ---------------------------------------------------------------------------------------
@@ -503,6 +506,22 @@ class Builder:
             return line
         return line + "\t\t{\n" + "".join(f'\t\t\t*eventTag\t({f}\t"{t}"\t"{v}")\n' for f, t, v in tags) + "\t\t}\n"
 
+    def rooted_source(self, gothic_name, set_name, name, first, offsets):
+        """The W3 idle `name` held for first + len(offsets) frames, his whole skeleton moved in
+        each by Gothic's hero's root motion in `gothic_name` (gothic.root_motion; frames before
+        `first`, which Gothic doesn't play, by its first offset): (file name, frames, segments)."""
+        key = ("rooted", gothic_name)
+        if key not in self.files:
+            loop = self.frames(self.animation(set_name, name))
+            period = max(1, len(loop) - 1)
+            moves = [offsets[0]] * first + list(offsets)
+            poses = [{n: (r, [p[0] + d[0], p[1] + d[1], p[2] + d[2]]) for n, (r, p) in loop[f % period].items()}
+                     for f, d in enumerate(moves)]
+            file_name = self._file_name(gothic_name)
+            write_animation(os.path.join(self.dir, file_name), self.skeleton.helper_blocks(self.rest, poses), len(poses))
+            self.files[key] = (file_name, len(poses), [])
+        return self.files[key]
+
     def null_source(self, frames):
         """An animation of `frames` frames that keys only the empty ZS_NULL slot (layered stand-ins)."""
         key = ("null", frames)
@@ -620,9 +639,7 @@ def gothic_animations(gothic_dir, have, builder):
     one-handed ones) for layer-1 ones, a null animation for layered ones. An entry is kept only
     if everything it names resolves (Gothic's model script compiler crashes on a broken link).
     The same method as the GTA mashup's make_cj_model.py, where it kept CJ from freezing."""
-    vdf = VdfReader(os.path.join(gothic_dir, "Data", "anims.VDF"))
-    key = next(k for k in vdf.files if k.upper().endswith("/HUMANS.MDS"))
-    text = re.sub(r"//[^\n]*", "", vdf.read(key).decode("latin-1"))
+    text = re.sub(r"//[^\n]*", "", humans_mds(gothic_dir))  # Gothic 2: from its compiled HUMANS.MSB
     idle_frames = {"move": builder.source("idle_standin", "move", "locomotion_idle")[1] - 1,
                    "sword": builder.source("1h_standin", "sword", SWORD_IDLE)[1] - 1}
 
@@ -657,6 +674,11 @@ def gothic_animations(gothic_dir, have, builder):
         frames = max(first, last) + 1
         if int(a[1]) > 1:
             asc, n, _ = builder.null_source(frames)
+        elif (("F" in a[5].upper() or LADDER.search(name)) and a[7].upper() == "F"
+              and len(offsets := root_motion(gothic_dir, name) or []) == abs(last - first) + 1):
+            # fly animations (the ladders' climbs, a drowned body) move him by their root motion
+            # alone, up and down too, so they get Gothic's hero's (the GTA mashup's make_cj_model.py)
+            asc, n, _ = builder.rooted_source(name, "move", "locomotion_idle", min(first, last), offsets)
         elif re.search(r"1h", name, re.I):
             asc, n, _ = idle(frames, "sword", SWORD_IDLE)
         else:

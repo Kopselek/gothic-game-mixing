@@ -1,11 +1,14 @@
-"""GTA San Andreas' pistol (the Colt 45) and rocket launcher for CJ in Gothic 1.
+"""GTA San Andreas' pistol (the Colt 45) and rocket launcher for CJ in Gothic 1 or Gothic 2.
 
-Gothic's light crossbow becomes the pistol and its bolts the 9 mm rounds; the next crossbow
+Gothic 1: its light crossbow becomes the pistol and its bolts the 9 mm rounds; the next crossbow
 (ITRW_CROSSBOW_02, sold only by Wolf and Scorpio from chapter 4) becomes the rocket launcher, and
-an alchemy ingredient no script or world uses (ITMI_ALCHEMY_SYRIANOIL_01) its rockets. The
-CJMovement plugin draws both as Gothic's crossbow (so NPCs react to the drawn weapon as usual) and
-aims and fires them as GTA does. Jackal's unused sword (JACKALSSWORD) becomes GTA's purple dildo
-(gun_dildo1), a one-handed weapon CJ swings with GTA's dildo combo. Writes:
+an alchemy ingredient no script or world uses (ITMI_ALCHEMY_SYRIANOIL_01) its rockets. Jackal's
+unused sword (JACKALSSWORD) becomes GTA's purple dildo (gun_dildo1), a one-handed weapon CJ swings
+with GTA's dildo combo. Gothic 2 Night of the Raven (ITEMS): the hunting crossbow becomes the
+pistol, the heavy crossbow (sold by traders, carried by Udar) the launcher, the cello bow of the
+In Extremo concert the game left out the rockets, and Skinner's sword Betty the dildo. The
+CJMovement plugin draws the guns as Gothic's crossbow (so NPCs react to the drawn weapon as usual)
+and aims and fires them as GTA does. Writes:
   _work\\DATA\\MESHES\\CJ\\CJ_COLT45.3DS          colt45.dff (gta3.img), in the hand's frame
   _work\\DATA\\MESHES\\CJ\\CJ_BULLET.3DS          a 9 mm round for the ammunition item
   _work\\DATA\\MESHES\\CJ\\CJ_GUNFLASH.3DS        colt45.dff's muzzle flash, moved from its "gunflash"
@@ -31,6 +34,7 @@ import sys
 sys.path.insert(1, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "..", "tools"))
 from daedalus import OP_PUSH_I, OP_PUSH_V, OP_PUSH_VV, Script
 from dff import Clump
+from gothic import GOTHIC_1, GOTHIC_2, version as gothic_version
 from img import ImgReader
 from sa_audio import SfxBanks
 from tex import write_tex
@@ -39,11 +43,13 @@ from vdf import write_vdf
 
 DEFAULT_GOTHIC = r"C:\Program Files (x86)\Steam\steamapps\common\Gothic"
 SCALE = 100  # GTA metres -> Gothic centimetres
-PISTOL, AMMO = "ITRW_CROSSBOW_01", "ITAMBOLT"
+# the items that become the weapons: (pistol, its ammunition, launcher, rockets, dildo); the
+# CJMovement plugin looks for the same ones (GUN_ITEMS, GUN_AMMO, DILDO_ITEM)
+ITEMS = {GOTHIC_1: ("ITRW_CROSSBOW_01", "ITAMBOLT", "ITRW_CROSSBOW_02", "ITMI_ALCHEMY_SYRIANOIL_01", "JACKALSSWORD"),
+         GOTHIC_2: ("ITRW_CROSSBOW_L_01", "ITRW_BOLT", "ITRW_CROSSBOW_H_01", "ITMI_IECELLOBOW", "ITMW_ADDON_BETTY")}
 PISTOL_MESH, BULLET_MESH, FLASH_MESH = "CJ_COLT45", "CJ_BULLET", "CJ_GUNFLASH"
-LAUNCHER, ROCKETS = "ITRW_CROSSBOW_02", "ITMI_ALCHEMY_SYRIANOIL_01"
 LAUNCHER_MESH, MISSILE_MESH = "CJ_ROCKETLA", "CJ_MISSILE"
-DILDO, DILDO_MESH = "JACKALSSWORD", "CJ_DILDO"
+DILDO_MESH = "CJ_DILDO"
 
 # Gothic.dat: what the two items become (data/weapon.dat PISTOL: 25 damage, 17 round clip).
 # The pistol's "dexterity needed" line shows the clip size instead: its condition becomes
@@ -206,21 +212,29 @@ def _assignments(script, instance):
     return out
 
 
-def patch_items(script):
-    """Light crossbow -> pistol, bolts -> 9 mm rounds. Sets absolute values, so it can run on
-    an already patched script."""
+def patch_items(script, version=GOTHIC_1):
+    """Light crossbow -> pistol, bolts -> 9 mm rounds, and the launcher, rockets and dildo (ITEMS
+    of `version`). Sets absolute values, so it can run on an already patched script. Gothic 2 sets
+    most numbers from constants (damageTotal = Damage_Jagdarmbrust), Gothic 1 as numbers: either
+    becomes a number."""
+    pistol, ammo, launcher, rockets_item, dildo = ITEMS[version]
     code = bytearray(script.code)
     sym = script.by_name
+    numbers = (OP_PUSH_V, OP_PUSH_I)
 
     def operand(pc, value):
         code[pc + 1:pc + 5] = struct.pack("<i", value)
+
+    def number(pc, value):
+        code[pc] = OP_PUSH_I
+        operand(pc, value)
 
     def literal(index, text, uses=1):
         assert script.references(index) <= uses, "string literal is shared with other code"
         script.symbols[index].content = [text.encode("cp1250")]
 
     ammo_name = None
-    for member, index, pc, op, arg in _assignments(script, AMMO):
+    for member, index, pc, op, arg in _assignments(script, ammo):
         if member == "C_ITEM.NAME" and op == OP_PUSH_V:
             ammo_name = arg
             literal(arg, AMMO_NAME, uses=2)  # also the label of the pistol's clip line
@@ -228,74 +242,72 @@ def patch_items(script):
             literal(arg, BULLET_MESH + ".3DS")
         elif member == "C_ITEM.MATERIAL" and op == OP_PUSH_V:
             operand(pc, sym["MAT_METAL"])
-    for member, index, pc, op, arg in _assignments(script, PISTOL):
+    for member, index, pc, op, arg in _assignments(script, pistol):
         if member == "C_ITEM.NAME" and op == OP_PUSH_V:
             literal(arg, PISTOL_NAME)
         elif member == "C_ITEM.VISUAL" and op == OP_PUSH_V:
             literal(arg, PISTOL_MESH + ".3DS")
         elif member == "C_ITEM.MATERIAL" and op == OP_PUSH_V:
             operand(pc, sym["MAT_METAL"])
-        elif member == "C_ITEM.DAMAGETOTAL" and op == OP_PUSH_I:
-            operand(pc, PISTOL_DAMAGE)
+        elif member == "C_ITEM.DAMAGETOTAL" and op in numbers:
+            number(pc, PISTOL_DAMAGE)
         elif member == "C_ITEM.COND_ATR" and index == 2 and op == OP_PUSH_V:
             operand(pc, sym["ATR_HITPOINTS_MAX"])
-        elif member == "C_ITEM.COND_VALUE" and index == 2 and op == OP_PUSH_I:
-            operand(pc, CLIP)
+        elif member == "C_ITEM.COND_VALUE" and index == 2 and op in numbers:
+            number(pc, CLIP)
         elif member == "C_ITEM.TEXT" and index == 3 and op == OP_PUSH_V:
             operand(pc, ammo_name)
 
-    # rockets: the alchemy ingredient made ammunition (munition category, stacking, crossbow
-    # ammunition like the bolts), worth ROCKET_VALUE
-    rockets = sym[ROCKETS]
+    # rockets: the item made ammunition (munition category, stacking, crossbow ammunition like the
+    # bolts), worth ROCKET_VALUE
+    rockets = sym[rockets_item]
     rockets_name = None
-    for member, index, pc, op, arg in _assignments(script, ROCKETS):
+    for member, index, pc, op, arg in _assignments(script, rockets_item):
         if member == "C_ITEM.NAME" and op == OP_PUSH_V:
             rockets_name = arg
             literal(arg, ROCKETS_NAME, uses=2)  # also the label of the launcher's load line
         elif member == "C_ITEM.MAINFLAG" and op == OP_PUSH_V:
             operand(pc, sym["ITEM_KAT_MUN"])
-        elif member == "C_ITEM.FLAGS" and op in (OP_PUSH_V, OP_PUSH_I):
-            code[pc] = OP_PUSH_I
-            operand(pc, script.int_value("ITEM_MULTI") | script.int_value("ITEM_CROSSBOW"))
-        elif member == "C_ITEM.VALUE" and op in (OP_PUSH_V, OP_PUSH_I):
-            code[pc] = OP_PUSH_I
-            operand(pc, ROCKET_VALUE)
+        elif member == "C_ITEM.FLAGS" and op in numbers:
+            number(pc, script.int_value("ITEM_MULTI") | script.int_value("ITEM_CROSSBOW"))
+        elif member == "C_ITEM.VALUE" and op in numbers:
+            number(pc, ROCKET_VALUE)
         elif member == "C_ITEM.VISUAL" and op == OP_PUSH_V:
             literal(arg, MISSILE_MESH + ".3DS")
         elif member == "C_ITEM.MATERIAL" and op == OP_PUSH_V:
             operand(pc, sym["MAT_METAL"])
     # the launcher: GTA's numbers, its rockets as munition
-    for member, index, pc, op, arg in _assignments(script, LAUNCHER):
+    for member, index, pc, op, arg in _assignments(script, launcher):
         if member == "C_ITEM.NAME" and op == OP_PUSH_V:
             literal(arg, LAUNCHER_NAME)
         elif member == "C_ITEM.VISUAL" and op == OP_PUSH_V:
             literal(arg, LAUNCHER_MESH + ".3DS")
         elif member == "C_ITEM.MATERIAL" and op == OP_PUSH_V:
             operand(pc, sym["MAT_METAL"])
-        elif member == "C_ITEM.DAMAGETOTAL" and op == OP_PUSH_I:
-            operand(pc, LAUNCHER_DAMAGE)
+        elif member == "C_ITEM.DAMAGETOTAL" and op in numbers:
+            number(pc, LAUNCHER_DAMAGE)
         elif member == "C_ITEM.MUNITION" and op == OP_PUSH_I:
             operand(pc, rockets)
         elif member == "C_ITEM.COND_ATR" and index == 2 and op == OP_PUSH_V:
             operand(pc, sym["ATR_HITPOINTS_MAX"])
-        elif member == "C_ITEM.COND_VALUE" and index == 2 and op == OP_PUSH_I:
-            operand(pc, LAUNCHER_CLIP)
+        elif member == "C_ITEM.COND_VALUE" and index == 2 and op in numbers:
+            number(pc, LAUNCHER_CLIP)
         elif member == "C_ITEM.TEXT" and index == 3 and op == OP_PUSH_V:
             operand(pc, rockets_name)
     # the dildo: a soft, blunt one-hander anyone can swing
-    for member, index, pc, op, arg in _assignments(script, DILDO):
+    for member, index, pc, op, arg in _assignments(script, dildo):
         if member == "C_ITEM.NAME" and op == OP_PUSH_V:
             literal(arg, DILDO_NAME)
         elif member == "C_ITEM.VISUAL" and op == OP_PUSH_V:
             literal(arg, DILDO_MESH + ".3DS")
         elif member == "C_ITEM.MATERIAL" and op == OP_PUSH_V:
             operand(pc, sym["MAT_LEATHER"])
-        elif member == "C_ITEM.DAMAGETOTAL" and op == OP_PUSH_I:
-            operand(pc, DILDO_DAMAGE)
+        elif member == "C_ITEM.DAMAGETOTAL" and op in numbers:
+            number(pc, DILDO_DAMAGE)
         elif member == "C_ITEM.DAMAGETYPE" and op == OP_PUSH_V:
             operand(pc, sym["DAM_BLUNT"])
-        elif member == "C_ITEM.COND_VALUE" and index == 2 and op == OP_PUSH_I:
-            operand(pc, 0)
+        elif member == "C_ITEM.COND_VALUE" and index == 2 and op in numbers:
+            number(pc, 0)
     script.code = bytes(code)
 
 
@@ -304,11 +316,13 @@ def patch_gothic_dat(gothic_dir):
     if not os.path.exists(path + ".orig"):
         shutil.copy2(path, path + ".orig")
     script = Script(open(path, "rb").read())
-    patch_items(script)
+    version = gothic_version(gothic_dir) or GOTHIC_1
+    patch_items(script, version)
     with open(path, "wb") as f:
         f.write(script.to_bytes())
-    print(f"Gothic.dat: {PISTOL} is now {PISTOL_NAME}, {AMMO} {AMMO_NAME}, {LAUNCHER} {LAUNCHER_NAME}, {ROCKETS} {ROCKETS_NAME}, "
-          f"{DILDO} {DILDO_NAME}")
+    pistol, ammo, launcher, rockets, dildo = ITEMS[version]
+    print(f"Gothic.dat: {pistol} is now {PISTOL_NAME}, {ammo} {AMMO_NAME}, {launcher} {LAUNCHER_NAME}, {rockets} {ROCKETS_NAME}, "
+          f"{dildo} {DILDO_NAME}")
 
 
 def build(gta_dir, gothic_dir):

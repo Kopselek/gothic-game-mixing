@@ -1,10 +1,11 @@
 # Gothic × GTA San Andreas
 
-Play **Gothic 1** as **CJ** from GTA San Andreas. You get his model, animations and voice, plus
-GTA's controls, camera and HUD, GTA weapons, and the Sanchez motorbike.
+Play **Gothic 1** or **Gothic 2 Night of the Raven** as **CJ** from GTA San Andreas. You get his
+model, animations and voice, plus GTA's controls, camera and HUD, GTA weapons, and the Sanchez
+motorbike.
 
-This is one of the Gothic 1 mashups in [gothic-game-mixing](../../README.md). Install it with
-`GothicMashupInstaller.exe` by choosing **GTA San Andreas** (see
+This is one of the Gothic mashups in [gothic-game-mixing](../../README.md). Install it with
+`GothicMashupInstaller.exe` by choosing your Gothic and **GTA San Andreas** (see
 [Install](../../README.md#install)). The installer reads **your own** GTA San Andreas
 installation and builds CJ, his animations, sounds, textures and the bike straight into
 **your own** Gothic folder.
@@ -22,7 +23,7 @@ installation and builds CJ, his animations, sounds, textures and the bike straig
 ## Start the game
 
 Start the game with **`Start Gothic with CJ.bat`** in your Gothic folder, not with Steam's Play
-button. The file runs `system\GothicMod.exe -zautoconvertdata`.
+button. The file runs `system\GothicMod.exe -zautoconvertdata` (Gothic 2: `system\Gothic2.exe`).
 
 * The **first start takes longer**, because Gothic compiles CJ's model and animations.
 * In the **first session**, CJ may hop or fall on slopes while the game is still compiling and
@@ -35,8 +36,9 @@ button. The file runs `system\GothicMod.exe -zautoconvertdata`.
   `system\_backup_before_union`.
 * It builds CJ, the weapons, the HUD, the radar and the bike from your GTA files into `_work\DATA`
   and `Data\CJ_*.vdf`.
-* It makes Gothic's hero CJ and turns two crossbows, the bolts and two unused items into CJ's
+* It makes Gothic's hero CJ and turns two crossbows, the bolts and two other items into CJ's
   weapons (see [Known limitations](#known-limitations)).
+* In Gothic 2 the radar has a map for each world: Khorinis, the Valley of Mines and Jharkendar.
 * In `Gothic.ini` it sets GTA's keys and adds the `[CJMOVEMENT]` settings. Your own values stay
   when you install again.
 * It copies the plugin to `Data\CJMovement.vdf` and creates `Start Gothic with CJ.bat`.
@@ -62,8 +64,8 @@ The rest of the mod's files in `_work` are only used by the mod and do no harm.
 * **GTA controls and camera:** camera-relative W/A/S/D, a mouse-orbit follow camera, sprint that
   builds up like GTA's, GTA's jump, and a click combo with your fists.
 
-* **GTA HUD:** health, money (Gothic's ore), weapon icon with ammo, clock, a radar built from
-  Gothic's world map, and "wasted" with San Andreas's death camera.
+* **GTA HUD:** health, money (Gothic 1's ore, Gothic 2's gold), weapon icon with ammo, clock, a
+  radar built from Gothic's world maps, and "wasted" with San Andreas's death camera.
 
 * **Weapons:** the Colt 45 pistol (aim, fire, reload, muzzle flash, bullet impacts and splashes),
   the rocket launcher (first-person aim, missile, an explosion that kills and throws people and the
@@ -110,13 +112,31 @@ All settings are in `Gothic.ini`, section `[CJMOVEMENT]`, each with a short note
 
 * The new items' names are in Polish, for example "Pistolet 9mm". They are set in
   `tools\make_cj_pistol.py`.
-* The guns and the dildo replace a few Gothic items, so those items no longer exist as they were:
+* The guns and the dildo replace a few Gothic items, so those items no longer exist as they were.
+  In Gothic 1:
   * the light crossbow, which becomes the pistol, and its bolts, which become pistol ammo;
   * the second crossbow, which becomes the rocket launcher;
   * an unused alchemy ingredient, which becomes rockets;
   * Jackal's unused sword, which becomes the dildo.
+
+  In Gothic 2 Night of the Raven:
+  * the hunting crossbow, which becomes the pistol, and the bolts, which become pistol ammo;
+  * the heavy crossbow (sold by traders, carried by Udar), which becomes the rocket launcher;
+  * the cello bow of the In Extremo concert the game left out, which becomes rockets;
+  * Betty, Skinner's sword in the bandits' camp, which becomes the dildo.
+* Gothic 2's hero also gets Gothic 2's interactions (doors, chests, benches, workbenches) as
+  stand-ins, read from the game's compiled model script; see [the status](#gothic-2-status).
 * The bike isn't saved with the game. It appears next to CJ on every load. That is also how you
   get it back after it drowns in deep water.
+
+## Gothic 2 status
+
+Gothic 2 Night of the Raven support is new. Checked so far, on the Steam Gold Edition
+(`Gothic2.exe` 2.6 fix): the installer runs through on it (Union, weapons, HUD, the three radar
+maps, bike, voice, CJ with Gothic 2's interactions), and the game starts with the plugin loaded
+and reaches the main menu. Playing in Gothic 2 (movement, camera, HUD, radar, guns, bike) hasn't
+been tried yet. If something is off there, set `debugLog=1` and attach `CJMovement.log` to an
+[issue](https://github.com/Kopselek/gothic-game-mixing/issues).
 
 ## How it works
 

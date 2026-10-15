@@ -1,7 +1,8 @@
-"""Install a Gothic 1 mashup from your own game files.
+"""Install a Gothic mashup from your own game files.
 
-Gothic 1 is the base of every mashup. You choose the game it is mashed up with, which brings its
-hero, mechanics and content into Gothic:
+The base game is Gothic 1 or Gothic 2 Night of the Raven (--gothic-version 1 or 2, the same
+plugin and tools for both). You choose the game it is mashed up with, which brings its hero,
+mechanics and content into Gothic:
   gta       GTA San Andreas (classic PC): play as CJ          mashups\\gta
   witcher   The Witcher 3: Wild Hunt: play as Geralt          mashups\\witcher
 
@@ -9,11 +10,12 @@ Nothing of either game ships with the mod: the mashup's tools read your own copy
 write into your Gothic folder. Then this sets Gothic.ini up for the mashup's plugin and copies the
 plugin into Data.
 
-  python install.py --game gta --game-dir "D:\\Games\\GTA San Andreas" [--gothic DIR] [--plugin CJMovement.vdf] [--install-union]
+  python install.py --game gta --game-dir "D:\\Games\\GTA San Andreas" [--gothic DIR] [--gothic-version 1|2] [--plugin CJMovement.vdf] [--install-union]
   python install.py --game witcher --game-dir "D:\\Games\\The Witcher 3" [--lang pl] [...]
   python install.py --uninstall [--gothic DIR]
 
 --gta DIR is short for --game gta --game-dir DIR, and --w3 DIR for --game witcher --game-dir DIR.
+The Gothic folder must hold the chosen version (system\\GothicMod.exe or system\\Gothic2.exe).
 
   union.py   Union 1.0m, downloaded and installed if it's missing and you agree (--install-union)
   then the mashup's own steps: see mashups\\<game>\\tools\\mashup_<game>.py
@@ -29,8 +31,10 @@ import shutil
 import sys
 
 import union
+from gothic import EXE, GOTHIC_1, GOTHIC_2, TITLE, check as check_gothic
 
 DEFAULT_GOTHIC = r"C:\Program Files (x86)\Steam\steamapps\common\Gothic"
+PLUGIN_PRESET = "G1-G2A-Release"  # plugin\build.bat's: one DLL for Gothic 1 and Gothic 2 NotR
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.dirname(HERE)
 INSTALLER_EXE = "GothicMashupInstaller.exe"
@@ -61,7 +65,7 @@ def installed_mashups(gothic):
 
 def plugin_build(mashup):
     """Where plugin\\build.bat puts the mashup's plugin."""
-    return os.path.join(REPO, "plugin", "out", "build", "G1-Release", mashup.NAME, "vdf", mashup.PLUGIN + ".vdf")
+    return os.path.join(REPO, "plugin", "out", "build", PLUGIN_PRESET, mashup.NAME, "vdf", mashup.PLUGIN + ".vdf")
 
 
 def find_plugin(mashup, folder=HERE):
@@ -70,11 +74,8 @@ def find_plugin(mashup, folder=HERE):
                  if os.path.exists(p)), None)
 
 
-def check(gothic, game, game_dir, install_union=False, lang=None):
-    problems = []
-    if not os.path.exists(os.path.join(gothic, "system", "GothicMod.exe")):
-        problems.append("system\\GothicMod.exe is missing: choose the Gothic 1 folder (the one with system and Data in "
-                        "it). Steam and GOG have it; a disk edition needs the Gothic 1 Player Kit 1.08k")
+def check(gothic, game, game_dir, install_union=False, lang=None, version=GOTHIC_1):
+    problems = check_gothic(gothic, version)
     if install_union:
         try:
             import py7zr  # noqa: F401  (union.py)
@@ -124,9 +125,9 @@ def set_up_ini(path, mashup):
     print(f"Gothic.ini: {keys}{len(added) // 2} {section} settings added")
 
 
-def write_starters(gothic, mashup):
+def write_starters(gothic, mashup, version):
     """The mashup's start files, each checking first that Union is still there to load the plugin."""
-    for name, (notes, start) in mashup.starters().items():
+    for name, (notes, start) in mashup.starters(EXE[version]).items():
         open(os.path.join(gothic, name), "w", newline="").write(
             "@echo off\r\n"
             + notes
@@ -143,7 +144,7 @@ def write_starters(gothic, mashup):
 
 def install(args):
     mashup, gothic = MASHUPS[args.game], args.gothic
-    problems = check(gothic, args.game, args.game_dir, args.install_union, args.lang)
+    problems = check(gothic, args.game, args.game_dir, args.install_union, args.lang, args.gothic_version)
     if problems:
         sys.exit("Can't install:\n  - " + "\n  - ".join(problems))
     for other in installed_mashups(gothic):
@@ -171,10 +172,10 @@ def install(args):
     else:
         print(f"\nThe {mashup.PLUGIN} plugin is not installed yet: build it (plugin\\build.bat) or download {name} from "
               f"the releases, then run this again with --plugin <path> or copy it into Gothic\\Data.")
-    write_starters(gothic, mashup)
-    starter = next(iter(mashup.starters()))
-    print(f"\nDone. Start the game with \"{os.path.join(gothic, starter)}\" (the first start compiles "
-          f"{mashup.HERO} and takes a while).")
+    write_starters(gothic, mashup, args.gothic_version)
+    starter = next(iter(mashup.starters(EXE[args.gothic_version])))
+    print(f"\nDone: {TITLE[args.gothic_version]} with {mashup.HERO}. Start the game with "
+          f"\"{os.path.join(gothic, starter)}\" (the first start compiles {mashup.HERO} and takes a while).")
 
 
 def uninstall(gothic, mashup):
@@ -208,7 +209,9 @@ def main(argv=None):
     parser.add_argument("--game-dir", help="that game's install folder")
     parser.add_argument("--gta", metavar="DIR", help="short for --game gta --game-dir DIR")
     parser.add_argument("--w3", metavar="DIR", help="short for --game witcher --game-dir DIR")
-    parser.add_argument("--gothic", default=DEFAULT_GOTHIC, help="Gothic 1 install folder")
+    parser.add_argument("--gothic", default=DEFAULT_GOTHIC, help="the Gothic install folder (the one with system and Data)")
+    parser.add_argument("--gothic-version", type=int, choices=(GOTHIC_1, GOTHIC_2), default=GOTHIC_1,
+                        help="the base game: 1 = Gothic 1 (default), 2 = Gothic 2 Night of the Raven")
     parser.add_argument("--plugin", help="the mashup's plugin to install, CJMovement.vdf or Witcher.vdf (default: one "
                                          "next to the installer, or the one plugin\\build.bat built)")
     parser.add_argument("--lang", help="The Witcher 3: the dub Geralt speaks: pl (default), en, de, ... "

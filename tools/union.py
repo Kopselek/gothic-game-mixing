@@ -1,10 +1,10 @@
-"""Download Union 1.0m and install it into a Gothic 1 folder.
+"""Download Union 1.0m and install it into a Gothic 1 or Gothic 2 Night of the Raven folder.
 
 Union (by Gratt and the Union team) is what loads the mashups' plugins. A Steam or GOG Gothic 1
-needs nothing else: this fetches "Union 1.0m.7z" from Gratt's own archive on GitHub
+or Gothic 2 needs nothing else: this fetches "Union 1.0m.7z" from Gratt's own archive on GitHub
 (Gratt-5r2/gothic-fix-archive), checks its SHA-256, and copies it in the way that archive's notes
-say for Gothic 1: Data\\Union.vdf, the System files, and the BinkMss DLLs into System as well.
-Every file it replaces is saved in system\\_backup_before_union first.
+say: Data\\Union.vdf and the System files, and for Gothic 1 the BinkMss DLLs into System as well
+(they are for Gothic 1 only). Every file it replaces is saved in system\\_backup_before_union first.
 
   python union.py [--gothic DIR]
 
@@ -17,12 +17,14 @@ import shutil
 import tempfile
 import urllib.request
 
+from gothic import GOTHIC_2, version
+
 DEFAULT_GOTHIC = r"C:\Program Files (x86)\Steam\steamapps\common\Gothic"
 UNION_URL = "https://raw.githubusercontent.com/Gratt-5r2/gothic-fix-archive/main/union/Union%201.0m.7z"
 UNION_SHA256 = "9a5fdff7c1e8d33c0e6b9051375f2569a352b1aac835040b6ef81cb7f92cf308"
 UNION_THREAD = "https://worldofplayers.ru/threads/40376/"
 BACKUP_DIR = "_backup_before_union"
-# archive folder -> game folder (Gothic 1 takes BinkMss into System too)
+# archive folder -> game folder (Gothic 1 takes BinkMss into System too, Gothic 2 leaves it out)
 LAYOUT = [("Data", "Data"), ("System", "system"), ("BinkMss", "system")]
 
 
@@ -67,7 +69,7 @@ def install(gothic):
             z.extractall(files)
 
         backup = os.path.join(gothic, "system", BACKUP_DIR)
-        for source, target in LAYOUT:
+        for source, target in LAYOUT[:2] if version(gothic) == GOTHIC_2 else LAYOUT:
             for name in sorted(os.listdir(os.path.join(files, source))):
                 dest = os.path.join(gothic, target, name)
                 saved = os.path.join(backup, name)
@@ -82,7 +84,7 @@ def install(gothic):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--gothic", default=DEFAULT_GOTHIC, help="Gothic 1 install folder")
+    parser.add_argument("--gothic", default=DEFAULT_GOTHIC, help="Gothic 1 or Gothic 2 install folder")
     args = parser.parse_args()
     install(args.gothic)
 

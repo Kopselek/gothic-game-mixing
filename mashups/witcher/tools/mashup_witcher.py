@@ -1,4 +1,4 @@
-"""The Witcher 3 mashup, as the installer (tools/install.py) installs it: Gothic 1 as Geralt.
+"""The Witcher 3 mashup, as the installer (tools/install.py) installs it: Gothic 1 or Gothic 2 as Geralt.
 
 Its tools read your The Witcher 3 install and write Geralt (his model, face, animations and voice)
 into your Gothic folder, and the Witcher plugin brings The Witcher 3's controls, camera, sword
@@ -107,8 +107,8 @@ def build(args, run):
         print("\nffmpeg is not on PATH: Geralt's voice is skipped (install ffmpeg and run the installer again)")
 
 
-def starters():
-    """{start file: (its notes, how it starts GothicMod.exe from system)}; install.py adds the Union check.
+def starters(exe):
+    """{start file: (its notes, how it starts the game's `exe` from system)}; install.py adds the Union check.
 
     They let Gothic compile Geralt only while he isn't compiled yet: with -zautoconvertdata Gothic
     also tries to rebuild some of its own monsters from sources the game doesn't ship and stops
@@ -119,8 +119,8 @@ def starters():
                'if not exist "..\\_work\\DATA\\ANIMS\\_COMPILED\\GERALT.MDH" set CONVERT=-zautoconvertdata\r\n'
                'if not exist "..\\_work\\DATA\\ANIMS\\_COMPILED\\GERALT_BODY.MDM" set CONVERT=-zautoconvertdata\r\n'
                'if not exist "..\\_work\\DATA\\ANIMS\\_COMPILED\\GERALT_SPRINT.MDH" set CONVERT=-zautoconvertdata\r\n')
-    return {STARTER: (notes, convert + 'start "" GothicMod.exe %CONVERT%\r\n'),
-            STARTER_WINDOWED: (notes, convert + 'start "" GothicMod.exe %CONVERT% -zwindow\r\n')}
+    return {STARTER: (notes, convert + f'start "" {exe} %CONVERT%\r\n'),
+            STARTER_WINDOWED: (notes, convert + f'start "" {exe} %CONVERT% -zwindow\r\n')}
 
 
 def selftest():

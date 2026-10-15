@@ -3,8 +3,13 @@
 Play **Gothic 1** as **Geralt of Rivia** from The Witcher 3: Wild Hunt. You get his model, face,
 animations and voice, plus The Witcher 3's controls, camera, sword fighting and signs.
 
-This is one of the Gothic 1 mashups in [gothic-game-mixing](../../README.md). Install it with
-`GothicMashupInstaller.exe` by choosing **The Witcher 3** (see
+> **Gothic 2 Night of the Raven** can be chosen as the base too: the installer, the tools and the
+> plugin handle it (Gothic 2's animation list, its own sword for Geralt's start, the plugin built
+> for its engine), but Geralt in Gothic 2 hasn't been installed or played yet. Gothic 1 is the
+> tested base.
+
+This is one of the Gothic mashups in [gothic-game-mixing](../../README.md). Install it with
+`GothicMashupInstaller.exe` by choosing your Gothic and **The Witcher 3** (see
 [Install](../../README.md#install)). The installer reads **your own** Witcher 3 installation and
 builds Geralt, his animations, face and voice straight into **your own** Gothic folder.
 

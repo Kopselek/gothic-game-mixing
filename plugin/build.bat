@@ -1,6 +1,7 @@
 @echo off
-rem Builds the mashups' Union plugins for Gothic 1 (GothicMod.exe 1.08k_mod) with MSVC x86:
-rem out\build\G1-Release\gta\vdf\CJMovement.vdf and out\build\G1-Release\witcher\vdf\Witcher.vdf.
+rem Builds the mashups' Union plugins with MSVC x86, each one DLL for Gothic 1 (GothicMod.exe
+rem 1.08k_mod) and Gothic 2 Night of the Raven (Gothic2.exe 2.6):
+rem out\build\G1-G2A-Release\gta\vdf\CJMovement.vdf and out\build\G1-G2A-Release\witcher\vdf\Witcher.vdf.
 rem "build.bat CJMovement" or "build.bat Witcher" builds that one only.
 rem Needs Visual Studio (or its Build Tools) with the C++ workload and CMake.
 setlocal
@@ -11,9 +12,9 @@ if not defined VSDIR (echo Visual Studio with the C++ workload not found & exit 
 call "%VSDIR%\VC\Auxiliary\Build\vcvars32.bat" >nul || exit /b 1
 cd /d "%~dp0"
 if not exist dependencies\union\union-api\CMakeLists.txt git submodule update --init --recursive || exit /b 1
-cmake --preset G1-Release || exit /b 1
+cmake --preset G1-G2A-Release || exit /b 1
 if "%~1"=="" (
-	cmake --build --preset G1-Release || exit /b 1
+	cmake --build --preset G1-G2A-Release || exit /b 1
 ) else (
-	cmake --build --preset G1-Release --target build_vdf_%~1 || exit /b 1
+	cmake --build --preset G1-G2A-Release --target build_vdf_%~1 || exit /b 1
 )

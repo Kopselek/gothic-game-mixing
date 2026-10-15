@@ -28,12 +28,12 @@ sys.path.insert(1, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."
 from asc import helper_block, write_animation, write_softskin
 from daedalus import Script
 from dff import Clump
+from gothic import GOTHIC_1, humans_mds, root_motion, version as gothic_version
 from ifp import read_ifp
 from img import ImgReader
 from make_cj_bike import DEFAULT_BIKE, bike_anims, vehicle_info
 from tex import write_tex
 from txd import Texture, read_txd
-from vdf import VdfReader
 
 DEFAULT_GOTHIC = r"C:\Program Files (x86)\Steam\steamapps\common\Gothic"
 MODEL, BODY, TEXTURE = "CJ", "CJ_BODY", "CJ"
@@ -280,6 +280,9 @@ SLOTS = {1001: ("ZS_RIGHTHAND", 24), 1002: ("ZS_LEFTHAND", 34), 1003: ("ZS_GUNFL
 # own ways of moving (sliding down slopes, turning, strafing, jumps, ledges, falls, swimming): CJ
 # moves the GTA way, and with an animation for its slide Gothic would slide him down steep paths.
 SKIP_GOTHIC = re.compile(r"(^|_)(1h|2h|bow|mag)|slide|turn|strafe|jump|hang|fall|swim|dive|walkw|walkb|runb|sneakb", re.I)
+# The ladder's animations, whose stand-ins move like Gothic's hero (gothic_animations): its climbs are
+# fly animations, and the way on and off keeps him where they start and end.
+LADDER = re.compile(r"(^|_)Ladder_", re.I)
 # (Gothic name pattern, package, GTA animation, frames as in ANIMATIONS); the first match wins
 INTERACTIONS = [
     (r"^c_Stand_2_IGet_", "bomber", "BOM_Plant_In", "all"),              # pick an item up
@@ -688,18 +691,19 @@ MDS_ENTRY = re.compile(r"\b(aniAlias|aniBlend|aniComb|aniDisable|ani)\s*\(([^)]*
 MDS_EVENT = re.compile(r"^\s*(\*\w+)\s*\(\s*(-?\d+)(.*)\)\s*$")
 
 
-def gothic_animations(gothic_dir, have, source, null_source):
+def gothic_animations(gothic_dir, have, source, null_source, rooted_source):
     """MDS lines for the HUMANS.MDS animations CJ lacks (see INTERACTIONS). `have`: CJ's own
     animations, lower-case name -> kind ("ani", "aniComb", "aniBlend"); `source(gta_names,
-    package)` writes an animation source, `null_source(frames)` one that moves nothing visible.
+    package)` writes an animation source, `null_source(frames)` one that moves nothing visible,
+    `rooted_source(name, offsets)` his idle stance moved by Gothic's root motion.
     Animations Gothic plays over the moves (layer above 1: looking at things, random gestures)
     get the latter where INTERACTIONS has nothing, so they never freeze CJ's body; layer 1 ones
-    (states Gothic plays alone) get his idle stance. An entry is kept only if everything it names resolves:
+    (states Gothic plays alone) get his idle stance. Fly animations (flag F: the ladders, a
+    drowned body) move the character by their root motion alone, up and down too, so theirs is
+    Gothic's hero's: with the idle stance's CJ stayed at a ladder's foot. An entry is kept only if everything it names resolves:
     its next animation, an alias's target (which must be an ani: Gothic cannot alias a blend) and a
     combination's parts; Gothic's model script compiler crashes on a broken link."""
-    vdf = VdfReader(os.path.join(gothic_dir, "Data", "anims.VDF"))
-    key = next(k for k in vdf.files if k.upper().endswith("/HUMANS.MDS"))
-    text = re.sub(r"//[^\n]*", "", vdf.read(key).decode("latin-1"))
+    text = re.sub(r"//[^\n]*", "", humans_mds(gothic_dir))  # Gothic 2: from its compiled HUMANS.MSB
     idle_frames = source(("IDLE_stance",), "ped")[1] - 1  # one loop
     entries = []  # (name, kind, next, [(dependency, required kind)], MDS text)
     seen = set(have)
@@ -731,6 +735,10 @@ def gothic_animations(gothic_dir, have, source, null_source):
             options = [o for o in options if not o.upper().startswith("FPS:")]  # GTA's own timing
         elif int(a[1]) > 1:
             asc, n, _, _ = null_source(frames)
+            span = (0, n - 1)
+        elif (("F" in a[5].upper() or LADDER.search(name)) and a[7].upper() == "F"
+              and len(offsets := root_motion(gothic_dir, name) or []) == frames):
+            asc, n = rooted_source(name, offsets)
             span = (0, n - 1)
         else:
             asc, _, _, _ = source(("IDLE_stance",) * max(1, -(-frames // idle_frames)), "ped")
@@ -855,6 +863,19 @@ def build(gta, gothic_dir, preview=None, gothic_anims=True, bike=DEFAULT_BIKE):
     have = {e[0].lower(): "ani" for e in ANIMATIONS + BIKE_ANIMATIONS}
     have.update({c[0].lower(): "aniComb" for c in COMBINED + BIKE_COMBINED})
     have.update({b[0].lower(): "aniBlend" for b in BLENDS})
+    def rooted_source(name, offsets):
+        """CJ's idle stance for len(offsets) frames, his whole skeleton moved each frame by
+        offsets[f]: Gothic's hero's root motion in his animation `name` (gothic.root_motion)."""
+        key = ("rooted", name)
+        if key not in files:
+            idle = source(("IDLE_stance",) * max(1, -(-len(offsets) // idle_loop)), "ped")[3]
+            poses = [{b: (r, add(p, offset)) for b, (r, p) in idle[f].items()} for f, offset in enumerate(offsets)]
+            path = os.path.join(anims, f"CJ_GOTHIC_{name.upper()}.ASC")
+            write_animation(path, helpers({b: [pose[b] for pose in poses] for b in order}, set(order) - FACE_BONES),
+                            len(poses))
+            files[key] = (os.path.basename(path), len(poses))
+        return files[key]
+
     def null_source(frames):
         """`frames` frames keying only the empty ZS_GUNFLASH slot at its rest pose."""
         from ifp import Track
@@ -865,7 +886,8 @@ def build(gta, gothic_dir, preview=None, gothic_anims=True, bike=DEFAULT_BIKE):
         return source((name,), "cj")
 
     if gothic_anims:
-        mds += gothic_animations(gothic_dir, have, source, null_source)
+        idle_loop = source(("IDLE_stance",), "ped")[1] - 1
+        mds += gothic_animations(gothic_dir, have, source, null_source, rooted_source)
     with open(os.path.join(anims, MODEL + ".MDS"), "w", newline="\r\n") as f:
         f.write(f'// CJ from GTA San Andreas: his skeleton, mesh and animations (generated by make_cj_model.py)\n'
                 f'Model ("{MODEL}")\n{{\n\tmeshAndTree ("{BODY}.ASC" DONT_USE_MESH)\n\tregisterMesh ("{BODY}.ASC")\n'
@@ -892,8 +914,10 @@ def build(gta, gothic_dir, preview=None, gothic_anims=True, bike=DEFAULT_BIKE):
         if os.path.exists(path):
             os.remove(path)
 
+    gta_files = sum(1 for key in files if key[0] != "rooted")
     print(f"CJ: {len(order)} bones, {len(verts)} vertices, {len(faces)} faces, "
-          f"{len(files)} GTA animations -> {len(ANIMATIONS)} Gothic animations + {len(BLENDS)} blends")
+          f"{gta_files} GTA animations -> {len(ANIMATIONS)} Gothic animations + {len(BLENDS)} blends, "
+          f"{len(files) - gta_files} stand-ins moved as Gothic's hero")
     if preview:
         render_preview(preview, skeleton, packages, verts, weights, faces, uvs, uv_faces, atlas, rest, lift)
 
@@ -937,7 +961,7 @@ def patch_hero(gothic_dir):
         assert script.references(index) == 1, "string literal is shared with other code"
         script.symbols[index].content = [value.encode()]
     from make_cj_pistol import patch_items  # rebuilt from the original too, so keep the pistol
-    patch_items(script)
+    patch_items(script, gothic_version(gothic_dir) or GOTHIC_1)
     with open(path, "wb") as f:
         f.write(script.to_bytes())
     print(f"Gothic.dat: hero is now {MODEL}.MDS / {BODY} (original saved as {os.path.basename(backup)})")

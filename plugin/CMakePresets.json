@@ -97,6 +97,8 @@
 		{ "name": "G2A-Release", "inherits": [ "windows", "x86", "release", "g2a", "config" ] },
 		{ "name": "MP-Debug", "inherits": [ "windows", "x86", "debug", "mp", "config" ] },
 		{ "name": "MP-Release", "inherits": [ "windows", "x86", "release", "mp", "config" ] },
+		{ "name": "G1-G2A-Debug", "inherits": [ "windows", "x86", "debug", "g1", "g2a", "config" ] },
+		{ "name": "G1-G2A-Release", "inherits": [ "windows", "x86", "release", "g1", "g2a", "config" ] },
 		{ "name": "G1-Debug-msvc-wine", "inherits": [ "msvc-wine", "x86", "debug", "g1", "msvc-wine-config" ] },
 		{ "name": "G1-Release-msvc-wine", "inherits": [ "msvc-wine", "x86", "release", "g1", "msvc-wine-config" ] },
 		{ "name": "G1A-Debug-msvc-wine", "inherits": [ "msvc-wine", "x86", "debug", "g1a", "msvc-wine-config" ] },
@@ -111,6 +113,8 @@
 	"buildPresets": [
 		{ "name": "G1-Debug", "configurePreset": "G1-Debug" },
 		{ "name": "G1-Release", "configurePreset": "G1-Release" },
+		{ "name": "G1-G2A-Debug", "configurePreset": "G1-G2A-Debug" },
+		{ "name": "G1-G2A-Release", "configurePreset": "G1-G2A-Release" },
 		{ "name": "G1A-Debug", "configurePreset": "G1A-Debug" },
 		{ "name": "G1A-Release", "configurePreset": "G1A-Release" },
 		{ "name": "G2-Debug", "configurePreset": "G2-Debug" },
