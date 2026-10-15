@@ -23,6 +23,11 @@ INI_SECTION = "CJMOVEMENT"
 INI_BACKUP = "Gothic.ini.before-cj"
 STARTER = "Start Gothic with CJ.bat"
 DEFAULT_LANG = None  # CJ speaks as in GTA: no dub to choose
+# the installer's compile run (install.compile_run): the game started once with this argument and
+# -zautoconvertdata, the plugin loads CJ so Gothic compiles him, then quits; these files show it did
+COMPILE_ARG = "-cjcompile"
+COMPILED = [r"_work\DATA\ANIMS\_COMPILED\CJ.MDH", r"_work\DATA\ANIMS\_COMPILED\CJ_BODY.MDM",
+            r"_work\DATA\ANIMS\_COMPILED\CJ_SPRINT.MDH", r"_work\DATA\ANIMS\_COMPILED\CJ_ROCKET.MDH"]
 
 # Gothic's own key bindings, set to GTA's where Gothic reads them itself (dialogue, menus): F is
 # also the action key, Left Alt walks, Left Shift jumps, C sneaks, X is the weapon key, F and S
@@ -127,11 +132,19 @@ def build(args, run):
 
 
 def starters(exe):
-    """{start file: (its notes, how it starts the game's `exe` from system)}; install.py adds the Union check."""
+    """{start file: (its notes, how it starts the game's `exe` from system)}; install.py adds the Union check.
+
+    It starts the game without -zautoconvertdata: the installer's compile run compiled CJ, and with
+    the flag Gothic also tries to rebuild some of its own monsters from sources the game doesn't
+    ship and stops when a skeleton comes near ("ASC not found: SKE_SPAWN_A02", the stone circle, the
+    Sleeper's temple). Only if CJ isn't compiled (the compile run failed) does it pass the flag, so
+    the game compiles him on that start; missing meshes (.MRM) Gothic compiles without it."""
+    convert = "set CONVERT=\r\n" + "".join(
+        f'if not exist "..\\{path}" set CONVERT=-zautoconvertdata\r\n' for path in COMPILED)
     return {STARTER: (
-        "rem -zautoconvertdata lets Gothic compile CJ's model and animations the first time they are needed;\r\n"
-        "rem the path is this folder's own, so the Gothic folder can be moved or copied to another PC\r\n",
-        f'start "" {exe} -zautoconvertdata\r\n')}
+        "rem Starts Gothic with CJ. The paths are this folder's own, so the Gothic folder can be moved\r\n"
+        "rem or copied to another PC. -zautoconvertdata only if CJ isn't compiled yet.\r\n",
+        convert + f'start "" {exe} %CONVERT%\r\n')}
 
 
 def selftest():

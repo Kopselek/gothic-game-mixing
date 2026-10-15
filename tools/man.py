@@ -41,8 +41,12 @@ def read_man(data):
 
 
 def root_track(data):
-    """The root node's (model hierarchy node 0, Bip01) position in each frame."""
+    """The root node's (model hierarchy node 0, Bip01) position in each frame, in the source's frame
+    order (a reversed animation's file holds them as its source has them; Gothic plays them back to
+    front); None if the animation leaves the root alone (one for the head or the arms only)."""
     man = read_man(data)
+    if 0 not in man["indices"]:
+        return None
     root = man["indices"].index(0)
     return [frame[root] for frame in man["positions"]]
 

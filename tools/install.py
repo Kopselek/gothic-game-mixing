@@ -28,7 +28,9 @@ import argparse
 import glob
 import os
 import shutil
+import subprocess
 import sys
+import time
 
 import union
 from gothic import EXE, GOTHIC_1, GOTHIC_2, TITLE, check as check_gothic
@@ -166,16 +168,80 @@ def install(args):
 
     name = mashup.PLUGIN + ".vdf"
     plugin = args.plugin or find_plugin(mashup)
-    if plugin and os.path.exists(plugin):
+    installed_plugin = plugin and os.path.exists(plugin)
+    if installed_plugin:
         shutil.copy2(plugin, os.path.join(gothic, "Data", name))
         print(f"plugin: {plugin} -> Data\\{name}")
     else:
         print(f"\nThe {mashup.PLUGIN} plugin is not installed yet: build it (plugin\\build.bat) or download {name} from "
               f"the releases, then run this again with --plugin <path> or copy it into Gothic\\Data.")
     write_starters(gothic, mashup, args.gothic_version)
+    compiled = False
+    if getattr(mashup, "COMPILE_ARG", None) and installed_plugin and union.installed(gothic) and not args.no_compile:
+        compiled = compile_run(gothic, mashup, args.gothic_version)
     starter = next(iter(mashup.starters(EXE[args.gothic_version])))
     print(f"\nDone: {TITLE[args.gothic_version]} with {mashup.HERO}. Start the game with "
-          f"\"{os.path.join(gothic, starter)}\" (the first start compiles {mashup.HERO} and takes a while).")
+          f"\"{os.path.join(gothic, starter)}\""
+          + ("." if compiled else f" (the first start compiles {mashup.HERO} and takes a while)."))
+
+
+def ini_value(path, section, key, value):
+    """Set `key` in [section] of an ini file (Gothic.ini) to `value` if it is there; the old value, or None."""
+    text = open(path, "rb").read().decode("latin-1")
+    nl = "\r\n" if "\r\n" in text else "\n"
+    lines = text.split(nl)
+    inside = False
+    for i, line in enumerate(lines):
+        stripped = line.strip()
+        if stripped.startswith("["):
+            inside = stripped.upper() == f"[{section.upper()}]"
+        elif inside and stripped.split("=", 1)[0].strip().lower() == key.lower() and "=" in stripped:
+            old = stripped.split("=", 1)[1]
+            if old != value:
+                lines[i] = f"{key}={value}"
+                open(path, "wb").write(nl.join(lines).encode("latin-1"))
+            return old
+    return None
+
+
+def compile_run(gothic, mashup, version, timeout=900):
+    """Start the game once with -zautoconvertdata and the mashup's COMPILE_ARG: its plugin loads the
+    hero's model, overlays and meshes on the first frame (the menu), so Gothic compiles them, and
+    quits. The players' starts then go without -zautoconvertdata, with which Gothic stops where a
+    skeleton appears (see the mashup's starters). The logo videos are off for the run, and
+    Gothic.ini's crash mark is cleared after it. True if the mashup's COMPILED files are there."""
+    print(f"\n== compile run: Gothic starts once, in a window, to compile {mashup.HERO}, and closes by itself", flush=True)
+    ini = gothic_paths(gothic)[1]
+    videos = ini_value(ini, "GAME", "playLogoVideos", "0")
+    exe = os.path.join(gothic, "system", EXE[version])
+    started = time.time()
+    try:
+        # A second start if the first one stopped early. On the first start from a folder Union's
+        # SystemPack asks to restart the game, as it has set Windows's compatibility options for it.
+        for attempt in (1, 2):
+            process = subprocess.Popen([exe, "-zautoconvertdata", "-zwindow", mashup.COMPILE_ARG], cwd=os.path.dirname(exe))
+            try:
+                process.wait(timeout=timeout)
+            except subprocess.TimeoutExpired:
+                print(f"Gothic didn't close within {timeout // 60} minutes: closing it (process {process.pid})")
+                process.kill()  # this one process, by its handle
+                process.wait()
+                break
+            missing = [p for p in mashup.COMPILED if not os.path.exists(os.path.join(gothic, p))]
+            if not missing or attempt == 2:
+                break
+            print(f"Gothic closed before {mashup.HERO} was compiled: starting it once more", flush=True)
+    finally:
+        if videos is not None:
+            ini_value(ini, "GAME", "playLogoVideos", videos)
+        ini_value(ini, "INTERNAL", "gameAbnormalExit", "0")
+    missing = [p for p in mashup.COMPILED if not os.path.exists(os.path.join(gothic, p))]
+    if missing:
+        print(f"compile run: not compiled (Gothic's exit code {process.returncode & 0xFFFFFFFF:#x}): {', '.join(missing)}; "
+              f"the start file compiles {mashup.HERO} on the first start")
+        return False
+    print(f"compile run: {mashup.HERO} compiled in {time.time() - started:.0f} s")
+    return True
 
 
 def uninstall(gothic, mashup):
@@ -217,6 +283,8 @@ def main(argv=None):
     parser.add_argument("--lang", help="The Witcher 3: the dub Geralt speaks: pl (default), en, de, ... "
                                        "(<lang>pc.w3speech)")
     parser.add_argument("--skip-voice", action="store_true", help="keep Gothic's hero voice")
+    parser.add_argument("--no-compile", action="store_true",
+                        help="don't start the game once to compile the hero (the first start of the game does it then)")
     parser.add_argument("--install-union", action="store_true",
                         help="if Union is missing, download Union 1.0m (Gratt's GitHub archive) and install it")
     parser.add_argument("--uninstall", action="store_true",

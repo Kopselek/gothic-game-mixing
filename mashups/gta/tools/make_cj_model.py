@@ -17,6 +17,7 @@ usage: python make_cj_model.py --gta "D:\\Games\\GTA San Andreas" [--gothic DIR]
 """
 import argparse
 import glob
+import itertools
 import math
 import os
 import re
@@ -822,7 +823,11 @@ def build(gta, gothic_dir, preview=None, gothic_anims=True, bike=DEFAULT_BIKE):
             animated &= set(order) - FACE_BONES
             animated |= {breast for breast, (arm, _) in SHOULDERS.items() if arm in animated}
             animated -= {breast for breast, (arm, _) in SHOULDERS.items() if arm not in animated}
-            path = os.path.join(anims, "CJ_" + "_".join(name.upper() for name in gta_names) + ".ASC")
+            # a repeated animation once with its count (IDLE_STANCE_X17): Gothic opens no path
+            # longer than Windows's 260 characters
+            runs = [(name, len(list(group))) for name, group in itertools.groupby(gta_names)]
+            path = os.path.join(anims, "CJ_" + "_".join(name.upper() + (f"_X{count}" if count > 1 else "")
+                                                       for name, count in runs) + ".ASC")
             write_animation(path, helpers({b: [pose[b] for pose in poses] for b in order}, animated), len(poses))
             files[key] = (os.path.basename(path), len(poses), segments, poses)
         return files[key]
@@ -910,6 +915,9 @@ def build(gta, gothic_dir, preview=None, gothic_anims=True, bike=DEFAULT_BIKE):
     stale += [os.path.join(compiled_tex, n) for n in ("CJ_BODY-C.TEX", "CJ_HEAD-C.TEX")]
     for overlay in OVERLAYS:
         stale += glob.glob(os.path.join(compiled, overlay + ".*")) + glob.glob(os.path.join(compiled, overlay + "-*.MAN"))
+    # and sources this run didn't write (earlier versions' names)
+    written = {entry[0].upper() for entry in files.values()} | {BODY.upper() + ".ASC"}
+    stale += [p for p in glob.glob(os.path.join(anims, "CJ_*.ASC")) if os.path.basename(p).upper() not in written]
     for path in stale:
         if os.path.exists(path):
             os.remove(path)

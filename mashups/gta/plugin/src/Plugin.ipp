@@ -4983,10 +4983,105 @@ namespace GOTHIC_NAMESPACE
 		}
 	}
 
+	namespace CJ
+	{
+		// The compile run: the installer starts the game once with -cjcompile and -zautoconvertdata.
+		// On the first frame Gothic draws (its menu) CJ's model, body, overlays and meshes are loaded,
+		// so Gothic compiles them, and the game quits. The players' own starts then go without
+		// -zautoconvertdata, with which Gothic tries to rebuild some of its own monsters from sources
+		// it doesn't ship and stops where a skeleton appears ("ASC not found: SKE_SPAWN_A02").
+		static bool CompileRun()
+		{
+			static int run = -1;
+			if (run < 0)
+			{
+				char line[4096];
+				strncpy_s(line, GetCommandLineA(), _TRUNCATE);
+				_strlwr_s(line);
+				run = strstr(line, "-cjcompile") != nullptr;
+			}
+			return run == 1;
+		}
+
+		// Gothic's loader under structured exception handling: an exception in it is logged with its
+		// code and address instead of ending the game without a word (no C++ objects in here).
+		static zCModelPrototype* GuardedLoad(const zSTRING& name, zCModelPrototype* base, DWORD& code, void*& where)
+		{
+			__try
+			{
+				return zCModelPrototype::Load(name, base);
+			}
+			__except (code = GetExceptionCode(), where = GetExceptionInformation()->ExceptionRecord->ExceptionAddress,
+			          EXCEPTION_EXECUTE_HANDLER)
+			{
+				return nullptr;
+			}
+		}
+
+		static void Compile()
+		{
+			static bool done = false;
+			if (done)
+				return;
+			done = true;
+			LoadSettings();
+			Log("compile run: CJ's model, overlays and meshes");
+			// the model's prototype only: a whole model (zCVisual::LoadVisual("CJ.MDS")) quit the game
+			// at the menu, where there is no world yet
+			DWORD code = 0;
+			void* where = nullptr;
+			zCModelPrototype* base = GuardedLoad(zSTRING("CJ.MDS"), nullptr, code, where);
+			Log("compile run: CJ.MDS %s (exception %08X at %p)", base ? "loaded" : "not loaded", code, where);
+			if (base)
+			{
+				for (const char* overlay : { "CJ_SPRINT.MDS", "CJ_ROCKET.MDS" })
+				{
+					zCModelPrototype* proto = GuardedLoad(zSTRING(overlay), base, code, where);
+					Log("compile run: %s %s (exception %08X at %p)", overlay, proto ? "loaded" : "not loaded", code, where);
+					if (proto)
+						proto->Release();
+				}
+				base->Release();
+			}
+			static const char* const MESHES[] = { "CJ_COLT45.3DS", "CJ_BULLET.3DS", "CJ_GUNFLASH.3DS", "CJ_ROCKETLA.3DS",
+				"CJ_MISSILE.3DS", "CJ_DILDO.3DS", "CJ_BIKE_CHASSIS.3DS", "CJ_BIKE_FRONT.3DS", "CJ_BIKE_WHEELF.3DS",
+				"CJ_BIKE_WHEELR.3DS" };
+			for (const char* mesh : MESHES)
+			{
+				zCVisual* v = zCVisual::LoadVisual(zSTRING(mesh));
+				Log("compile run: %s %s", mesh, v ? "loaded" : "not loaded");
+				if (v)
+					v->Release();
+			}
+			Log("compile run: done, quitting");
+			// Gothic's own exit (gameMan->ExitGame) from its menu, in a window in the background, took
+			// minutes to end the game; what it compiled is written and closed, so the process ends here
+			TerminateProcess(GetCurrentProcess(), 0);
+		}
+	}
+
+	// In the compile run Gothic's warnings, faults and fatal errors go into the log: a fatal one
+	// ends the game with exit code 0 and no message.
+	int __fastcall zERROR_Report(zERROR* self, void* vtable, zERROR_TYPE type, int id, const zSTRING& text, signed char level,
+		unsigned int flag, int line, char* file, char* function);
+	auto Hook_zERROR_Report = Union::CreateHook(
+		SIGNATURE_OF(static_cast<int (zERROR::*)(zERROR_TYPE, int, const zSTRING&, signed char, unsigned int, int, char*, char*)>(&zERROR::Report)),
+		&zERROR_Report, Union::HookType::Hook_Detours);
+	int __fastcall zERROR_Report(zERROR* self, void* vtable, zERROR_TYPE type, int id, const zSTRING& text, signed char level,
+		unsigned int flag, int line, char* file, char* function)
+	{
+		if (CJ::CompileRun() && type >= zERR_TYPE_WARN)
+			CJ::Log("compile run: Gothic %s: %s", type == zERR_TYPE_FATAL ? "FATAL" : type == zERR_TYPE_FAULT ? "fault" : "warning",
+				text.ToChar());
+		return Hook_zERROR_Report(self, vtable, type, id, text, level, flag, line, file, function);
+	}
+
 	void __fastcall zCView_DrawItems(zCView* self, void* vtable);
 	auto Hook_zCView_DrawItems = Union::CreateHook(SIGNATURE_OF(&zCView::DrawItems), &zCView_DrawItems, Union::HookType::Hook_Detours);
 	void __fastcall zCView_DrawItems(zCView* self, void* vtable)
 	{
+		if (self == screen && CJ::CompileRun())
+			CJ::Compile();
 		if (self == screen)
 			CJ::Radar::Draw();
 		Hook_zCView_DrawItems(self, vtable);

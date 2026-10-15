@@ -39,7 +39,7 @@ sys.path.insert(1, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."
 from asc import write_animation
 from cr2w import CR2W
 from daedalus import Script
-from gothic import humans_mds, root_motion
+from gothic import humans_mds, mds_entries, root_motion
 from w3anim import AnimationSet
 from w3bundle import W3Install
 from w3mimic import compose
@@ -599,39 +599,7 @@ def face_animations(builder, face):
     return lines
 
 
-MDS_START = re.compile(r"^\s*(aniAlias|aniBlend|aniComb|aniDisable|ani)\s*\((.*)$", re.I)
 MDS_EVENT = re.compile(r"^\s*(\*\w+)\s*\(\s*(-?\d+)(.*)\)\s*$")
-
-
-def mds_entries(text):
-    """[(kind, args, events)] of a model script, a statement per line: Gothic's HUMANS.MDS has
-    an ani line without its closing parenthesis (c_Ore_S1_3, before the aniComb s_Ore_S1), so
-    a statement's arguments end at ')' or at the end of its line, and an event block belongs
-    to the statement right before it."""
-    out = []
-    lines = text.splitlines()
-    i = 0
-    while i < len(lines):
-        m = MDS_START.match(lines[i])
-        i += 1
-        if not m:
-            continue
-        kind = {k.lower(): k for k in ("ani", "aniAlias", "aniBlend", "aniComb", "aniDisable")}[m.group(1).lower()]
-        args = m.group(2).split(")")[0]
-        events = ""
-        j = i
-        while j < len(lines) and not lines[j].strip():
-            j += 1
-        if j < len(lines) and lines[j].strip().startswith("{"):
-            block = []
-            while j < len(lines):
-                block.append(lines[j])
-                if "}" in lines[j]:
-                    break
-                j += 1
-            events, i = "\n".join(block), j + 1
-        out.append((kind, args, events))
-    return out
 
 
 def gothic_animations(gothic_dir, have, builder):

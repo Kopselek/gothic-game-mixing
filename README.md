@@ -79,8 +79,9 @@ Play button:
 | GTA San Andreas | `Start Gothic with CJ.bat` |
 | The Witcher 3 | `Start Gothic as Geralt.bat`, or `Start Gothic as Geralt (window).bat` for a window |
 
-The **first start takes longer**, because Gothic compiles the hero's model and animations. Each
-mashup's README says more.
+Gothic has to compile the hero's model and animations once. For GTA San Andreas the installer
+does it: at the end Gothic opens in a window and closes by itself. For The Witcher 3 the **first
+start takes longer**. Each mashup's README says more.
 
 ### What the installer changes
 

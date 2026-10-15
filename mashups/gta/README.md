@@ -23,9 +23,17 @@ installation and builds CJ, his animations, sounds, textures and the bike straig
 ## Start the game
 
 Start the game with **`Start Gothic with CJ.bat`** in your Gothic folder, not with Steam's Play
-button. The file runs `system\GothicMod.exe -zautoconvertdata` (Gothic 2: `system\Gothic2.exe`).
+button. The file runs `system\GothicMod.exe` (Gothic 2: `system\Gothic2.exe`).
 
-* The **first start takes longer**, because Gothic compiles CJ's model and animations.
+* At the end of the installation **Gothic opens once in a window and closes by itself**. The
+  installer starts it to compile CJ's model and animations, so your first start doesn't have to.
+  If Union says the system settings were updated and asks to restart the game, click OK. Union
+  shows that once, the first time Gothic starts from a folder, and the installer starts the game
+  again if it closed too early.
+* The start file runs the game without `-zautoconvertdata`, or with it only if CJ isn't compiled
+  yet. With that flag Gothic also tries to rebuild some of its own monsters and crashes when a
+  skeleton appears (the stone circle, the Sleeper's temple). Versions before 1.2.1 always passed
+  it: run the new installer once to get the fixed start file.
 * In the **first session**, CJ may hop or fall on slopes while the game is still compiling and
   caching. That goes away from the next start on.
 
