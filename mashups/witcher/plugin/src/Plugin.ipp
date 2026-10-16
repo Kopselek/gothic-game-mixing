@@ -786,7 +786,7 @@ namespace GOTHIC_NAMESPACE
 		}
 
 		// What Apply/RemoveModelProtoOverlay do apart from stopping every animation (which would
-		// snap him into the sprint and, during a draw, loop it: gothic2beyond docs/09).
+		// snap him into the sprint and, during a draw, loop it).
 		static void SetSprintOverlay(zCModel* model, bool on)
 		{
 			if (on == SprintApplied(model))
@@ -1938,8 +1938,8 @@ namespace GOTHIC_NAMESPACE
 
 	// Gothic keeps the player on the ground it moves over at its own pace; with Geralt's Witcher
 	// speeds (run 5.4, sprint 6.7 m/s) its smoothed height correction left him behind the floor on
-	// slopes, and its slide angle threw him off crests (the GTA mashup's findings, docs/09 in the
-	// gothic2beyond knowledge base): height correction at once and steeper walkable ground.
+	// slopes, and its slide angle threw him off crests (the GTA mashup's findings): height
+	// correction at once and steeper walkable ground.
 	void __fastcall zCAIPlayer_PropagateCollObjectStates(zCAIPlayer* self, void* vtable, int state);
 	auto Hook_zCAIPlayer_PropagateCollObjectStates = Union::CreateHook(SIGNATURE_OF(&zCAIPlayer::PropagateCollObjectStates),
 		&zCAIPlayer_PropagateCollObjectStates, Union::HookType::Hook_Detours);

@@ -6545,17 +6545,34 @@ namespace GOTHIC_NAMESPACE
 	// The compile run starts on the first frame Gothic draws (its menu).
 	void __fastcall Mc_zCView_DrawItems(zCView* self, void* vtable);
 	auto Hook_Mc_zCView_DrawItems = Union::CreateHook(SIGNATURE_OF(&zCView::DrawItems), &Mc_zCView_DrawItems, Union::HookType::Hook_Detours);
+	// Gothic 2's camera fades the hero as it comes close to him (zCAICamera::DoAI: his visualAlpha, down
+	// to 0 with a wall behind him), and the renderer can be left drawing with a constant alpha then
+	// (zRND_ALPHA_SOURCE_CONSTANT, his): zCRnd_D3D::DrawPolySimple, which every 2D quad goes through,
+	// takes it, and the HUD was gone. The HUD and the screen's views take their textures' alpha.
 	void __fastcall Mc_zCView_DrawItems(zCView* self, void* vtable)
 	{
 		if (self == screen && Minecraft::CompileRun())
 			Minecraft::Compile();
-		if (self == screen)
+		if (self != screen || !zrenderer)
 		{
-			Minecraft::step = "hud";
-			Minecraft::DrawHud();
-			Minecraft::step = "Gothic's drawing";
+			Hook_Mc_zCView_DrawItems(self, vtable);
+			return;
 		}
+		zTRnd_AlphaBlendSource source = zrenderer->GetAlphaBlendSource(), material = zRND_ALPHA_SOURCE_MATERIAL;
+		float factor = zrenderer->GetAlphaBlendFactor(), one = 1.0f;
+		static bool wasConstant = false;
+		bool constant = source == zRND_ALPHA_SOURCE_CONSTANT;
+		if (constant != wasConstant)
+			Minecraft::Log("hud: the renderer's alpha %s", constant ? "left constant by Gothic, the HUD drawn with its own" : "from the textures again");
+		wasConstant = constant;
+		zrenderer->SetAlphaBlendSource(material);
+		zrenderer->SetAlphaBlendFactor(one);
+		Minecraft::step = "hud";
+		Minecraft::DrawHud();
+		Minecraft::step = "Gothic's drawing";
 		Hook_Mc_zCView_DrawItems(self, vtable);
+		zrenderer->SetAlphaBlendSource(source);
+		zrenderer->SetAlphaBlendFactor(factor);
 	}
 
 	// Gothic's overlays on Steve: their STEVE_* versions (see the header).

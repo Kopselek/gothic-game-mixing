@@ -47,7 +47,7 @@ packed into Data\W3_*.vdf (vdf.py)
 ```
 
 Gothic-side writers (`asc.py`, `tex.py`, `mesh3ds.py`, `wav.py`, `vdf.py`, `daedalus.py`,
-`datpatch.py`) come from the gothic2beyond knowledge base, where their formats are documented.
+`datpatch.py`) are shared by every mashup in `tools/`; each file's docstring documents its format.
 
 ## Phases
 

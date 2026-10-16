@@ -25,8 +25,10 @@ installation and builds CJ, his animations, sounds, textures and the bike straig
 Start the game with **`Start Gothic with CJ.bat`** in your Gothic folder, not with Steam's Play
 button. The file runs `system\GothicMod.exe` (Gothic 2: `system\Gothic2.exe`).
 
-* At the end of the installation **Gothic opens once in a window and closes by itself**. The
-  installer starts it to compile CJ's model and animations, so your first start doesn't have to.
+* At the end of the installation **Gothic opens once and closes by itself**, with your own video
+  settings. The installer starts it to compile CJ's model and animations, so your first start
+  doesn't have to. If Gothic can't start with your video settings ("Can't create D3DX
+  context"), the installer changes them until it does and says what it changed.
   If Union says the system settings were updated and asks to restart the game, click OK. Union
   shows that once, the first time Gothic starts from a folder, and the installer starts the game
   again if it closed too early.

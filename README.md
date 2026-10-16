@@ -86,8 +86,11 @@ Play button:
 | Minecraft | `Start Gothic as Steve.bat` |
 
 Gothic has to compile the hero's model and animations once. For GTA San Andreas and Minecraft the
-installer does it: at the end Gothic opens in a window and closes by itself. For The Witcher 3 the **first
-start takes longer**. Each mashup's README says more.
+installer does it: at the end Gothic opens once, with your own video settings, and closes by itself. If
+Gothic's renderer can't start with them (Gothic's box "Can't create D3DX context"), the installer
+changes them until it starts and says what it changed: full screen instead of a window, then your
+screen's resolution, then a window. For The Witcher 3 the **first start takes longer**. Each
+mashup's README says more.
 
 ### What the installer changes
 
@@ -121,6 +124,7 @@ is safe: it updates the mod and puts Union back if it's gone.
 | **… not found in The Witcher 3 folder** | That isn't The Witcher 3's folder, or the game isn't installed any more. Pick the folder that contains `bin` and `content`. |
 | **No Minecraft client with its assets** | Start a release version of Minecraft once in the Minecraft Launcher, then pick the Minecraft folder (the one with `versions` and `assets`) again. |
 | Gothic's hero keeps his own voice, or Minecraft has no sounds | The hero's voice and Minecraft's sounds need ffmpeg. Install it (`winget install Gyan.FFmpeg`), then start the installer again. |
+| **XD3D_InitPerDX: Can't create D3DX context** when Gothic starts | Gothic's renderer (Direct3D 7) can't start with its video settings: on some PCs it can't run in a window, and full screen only at a resolution the screen has. Run the installer again, it finds settings that start. By hand: in `system\Gothic.ini`, section `[VIDEO]`, set `zStartupWindowed=0`, `zVidResFullscreenX` and `zVidResFullscreenY` to your screen's resolution and `zVidResFullscreenBPP=32`; in `system\SystemPack.ini`, if it's there, `BorderlessWindow=0`. |
 | Windows SmartScreen or an antivirus warns about the installer | The exe isn't code-signed. Use "More info → Run anyway", or run the installer from source (see below). |
 | Anything else | Set `debugLog=1` in `system\Gothic.ini`, in the mashup's section (`[CJMOVEMENT]`, `[WITCHER]` or `[MINECRAFT]`), reproduce the problem, and attach the log from the Gothic folder (`CJMovement.log`, `Witcher.log` or `Minecraft.log`) to an [issue](https://github.com/Kopselek/gothic-game-mixing/issues). |
 
@@ -207,6 +211,11 @@ its start files.
 3. Import `mashup_<game>` in `tools/install.py` (`MASHUPS`). In
    `.github/workflows/release.yml`, add the tools folder to `--paths` and the plugin to the
    package.
+
+With [Claude Code](https://claude.com/claude-code), the project's skill
+[`new-mashup`](.claude/skills/new-mashup/SKILL.md) (`/new-mashup`) walks an agent through all of
+it: recon of the other game, the plan with its feature map, the converters, the plugin, every
+place a mashup is registered, building, testing and the pitfalls the existing mashups hit.
 
 ## Building the plugins
 

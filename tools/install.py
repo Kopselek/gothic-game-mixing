@@ -207,31 +207,190 @@ def ini_value(path, section, key, value):
     return None
 
 
+def ini_read(path, section, key):
+    """`key` in [section] of an ini file, stripped, or None."""
+    inside = False
+    for line in open(path, "rb").read().decode("latin-1").splitlines():
+        stripped = line.strip()
+        if stripped.startswith("["):
+            inside = stripped.upper() == f"[{section.upper()}]"
+        elif inside and "=" in stripped and stripped.split("=", 1)[0].strip().lower() == key.lower():
+            return stripped.split("=", 1)[1].strip()
+    return None
+
+
+def screen_resolution():
+    """The screen's display mode in real pixels (EnumDisplaySettings), or None."""
+    if os.name != "nt":
+        return None
+    import ctypes
+    from ctypes import wintypes
+
+    class DEVMODEW(ctypes.Structure):
+        _fields_ = [("dmDeviceName", wintypes.WCHAR * 32), ("dmSpecVersion", wintypes.WORD),
+                    ("dmDriverVersion", wintypes.WORD), ("dmSize", wintypes.WORD), ("dmDriverExtra", wintypes.WORD),
+                    ("dmFields", wintypes.DWORD), ("dmPositionX", wintypes.LONG), ("dmPositionY", wintypes.LONG),
+                    ("dmDisplayOrientation", wintypes.DWORD), ("dmDisplayFixedOutput", wintypes.DWORD),
+                    ("dmColor", ctypes.c_short), ("dmDuplex", ctypes.c_short), ("dmYResolution", ctypes.c_short),
+                    ("dmTTOption", ctypes.c_short), ("dmCollate", ctypes.c_short), ("dmFormName", wintypes.WCHAR * 32),
+                    ("dmLogPixels", wintypes.WORD), ("dmBitsPerPel", wintypes.DWORD), ("dmPelsWidth", wintypes.DWORD),
+                    ("dmPelsHeight", wintypes.DWORD), ("dmDisplayFlags", wintypes.DWORD),
+                    ("dmDisplayFrequency", wintypes.DWORD), ("dmRest", wintypes.DWORD * 8)]
+
+    mode = DEVMODEW()
+    mode.dmSize = ctypes.sizeof(DEVMODEW)
+    if not ctypes.windll.user32.EnumDisplaySettingsW(None, -1, ctypes.byref(mode)):  # ENUM_CURRENT_SETTINGS
+        return None
+    return (mode.dmPelsWidth, mode.dmPelsHeight) if mode.dmPelsWidth and mode.dmPelsHeight else None
+
+
+def full_screen_settings(gothic):
+    """The settings that start Gothic in a window although it starts without -zwindow, set to full
+    screen: Gothic.ini's zStartupWindowed, SystemPack.ini's BorderlessWindow and FixAppCompat=2 (a
+    window without a frame). The changes, as text."""
+    changed = []
+    ini = gothic_paths(gothic)[1]
+    pack = os.path.join(gothic, "system", "SystemPack.ini")
+    for path, section, key, bad, good in ((ini, "VIDEO", "zStartupWindowed", None, "0"),
+                                          (pack, "DEBUG", "BorderlessWindow", None, "0"),
+                                          (pack, "DEBUG", "FixAppCompat", "2", "1")):
+        old = ini_read(path, section, key) if os.path.exists(path) else None
+        if old is not None and old != good and (bad is None or old == bad):
+            ini_value(path, section, key, good)
+            changed.append(f"{os.path.basename(path)} {key}={good}")
+    return changed
+
+
+def resolution_settings(gothic):
+    """Gothic's full-screen resolution set to the screen's own, 32 bits, when it isn't already. The
+    change, as text."""
+    screen = screen_resolution()
+    ini = gothic_paths(gothic)[1]
+    if not screen:
+        return []
+    want = (str(screen[0]), str(screen[1]), "32")
+    keys = ("zVidResFullscreenX", "zVidResFullscreenY", "zVidResFullscreenBPP")
+    old = tuple(ini_read(ini, "VIDEO", k) for k in keys)
+    if old == want or None in old:
+        return []
+    for key, value in zip(keys, want):
+        ini_value(ini, "VIDEO", key, value)
+    return [f"Gothic.ini resolution {want[0]} x {want[1]}, 32 bits (was {old[0]} x {old[1]}, {old[2]} bits)"]
+
+
+def error_box(pid):
+    """The text of Gothic's error box ("Error-Message", shown before it stops on a fatal error) when
+    the process `pid` has one open, else None."""
+    if os.name != "nt":
+        return None
+    import ctypes
+    from ctypes import wintypes
+    user32 = ctypes.windll.user32
+    proc = ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
+    found = []
+
+    def text(hwnd):
+        buffer = ctypes.create_unicode_buffer(1024)
+        user32.GetWindowTextW(hwnd, buffer, 1024)
+        return buffer.value
+
+    def child(hwnd, _):
+        name = ctypes.create_unicode_buffer(64)
+        user32.GetClassNameW(hwnd, name, 64)
+        if name.value.lower() == "static" and text(hwnd).strip():
+            found.append(text(hwnd).strip())
+        return True
+
+    def top(hwnd, _):
+        owner = wintypes.DWORD()
+        user32.GetWindowThreadProcessId(hwnd, ctypes.byref(owner))
+        if owner.value == pid and user32.IsWindowVisible(hwnd) and text(hwnd) == "Error-Message":
+            found.append("")
+            user32.EnumChildWindows(hwnd, proc(child), 0)
+        return True
+
+    user32.EnumWindows(proc(top), 0)
+    return " ".join(found).strip() if found else None
+
+
+def wait_gothic(process, timeout):
+    """Wait for Gothic to close: None when it did, "timeout", or the text of its error box (Gothic is
+    then closed by its process handle, as clicking OK would)."""
+    end = time.time() + timeout
+    while process.poll() is None:
+        error = error_box(process.pid)
+        if error is not None or time.time() > end:
+            process.kill()  # this one process, by its handle
+            process.wait()
+            return "timeout" if error is None else error or "(no text)"
+        time.sleep(0.5)
+    return None
+
+
+def video_fix(gothic, window):
+    """Gothic's Direct3D 7 renderer didn't start (XD3D_InitPerDX: "Can't create D3DX context"): in a
+    window it can't on some PCs, and full screen only at a resolution the screen has. Changes the
+    next thing to try: full screen where its settings ask for a window, then the screen's own
+    resolution, then a window (returns "window"). False when nothing is left to try."""
+    changed = [] if window else full_screen_settings(gothic) or resolution_settings(gothic)
+    if changed:
+        print(f"Gothic's renderer didn't start with its video settings: starting it again with {', '.join(changed)}",
+              flush=True)
+        return True
+    if not window:
+        print("Gothic's renderer didn't start full screen at the screen's resolution either: trying a window", flush=True)
+        return "window"
+    print("Gothic's renderer (Direct3D 7) starts neither full screen nor in a window on this PC, with or without "
+          "the mod. Update the graphics driver; on a laptop with two graphics cards, give GothicMod.exe or "
+          "Gothic2.exe the dedicated one in Windows's graphics settings.", flush=True)
+    return False
+
+
 def compile_run(gothic, mashup, version, timeout=900):
     """Start the game once with -zautoconvertdata and the mashup's COMPILE_ARG: its plugin loads the
     hero's model, overlays and meshes on the first frame (the menu), so Gothic compiles them, and
     quits. The players' starts then go without -zautoconvertdata, with which Gothic stops where a
     skeleton appears (see the mashup's starters). The logo videos are off for the run, and
-    Gothic.ini's crash mark is cleared after it. True if the mashup's COMPILED files are there."""
-    print(f"\n== compile run: Gothic starts once, in a window, to compile {mashup.HERO}, and closes by itself", flush=True)
+    Gothic.ini's crash mark is cleared after it. True if the mashup's COMPILED files are there.
+    It starts as the start file does, with the player's own video settings, so it also shows that
+    Gothic's renderer starts with them; where it doesn't (Gothic's error box "Can't create D3DX
+    context", see video_fix), the settings are changed until it does."""
+    print(f"\n== compile run: Gothic starts once to compile {mashup.HERO}, and closes by itself", flush=True)
     ini = gothic_paths(gothic)[1]
     videos = ini_value(ini, "GAME", "playLogoVideos", "0")
     exe = os.path.join(gothic, "system", EXE[version])
     started = time.time()
+    window = False  # -zwindow, the last thing tried for the renderer
     try:
         # A second start if the first one stopped early. On the first start from a folder Union's
         # SystemPack asks to restart the game, as it has set Windows's compatibility options for it.
-        for attempt in (1, 2):
-            process = subprocess.Popen([exe, "-zautoconvertdata", "-zwindow", mashup.COMPILE_ARG], cwd=os.path.dirname(exe))
-            try:
-                process.wait(timeout=timeout)
-            except subprocess.TimeoutExpired:
-                print(f"Gothic didn't close within {timeout // 60} minutes: closing it (process {process.pid})")
-                process.kill()  # this one process, by its handle
-                process.wait()
+        starts = 0
+        while starts < 2:
+            starts += 1
+            process = subprocess.Popen([exe, "-zautoconvertdata", *(["-zwindow"] if window else []), mashup.COMPILE_ARG],
+                                       cwd=os.path.dirname(exe))
+            error = wait_gothic(process, timeout)
+            if error == "timeout":
+                print(f"Gothic didn't close within {timeout // 60} minutes: closed it (process {process.pid})")
                 break
+            if error is not None:
+                print(f"Gothic stopped with an error: {error}", flush=True)
+                if "D3DX" not in error:
+                    break
+                fix = video_fix(gothic, window)
+                if not fix:
+                    break
+                if fix == "window":
+                    window = True
+                starts -= 1
+                continue
+            if window:
+                ini_value(ini, "VIDEO", "zStartupWindowed", "1")
+                print("Gothic's renderer started in a window: Gothic.ini zStartupWindowed=1, so the start file "
+                      "starts it so too")
+                window = False
             missing = [p for p in mashup.COMPILED if not os.path.exists(os.path.join(gothic, p))]
-            if not missing or attempt == 2:
+            if not missing or starts == 2:
                 break
             print(f"Gothic closed before {mashup.HERO} was compiled: starting it once more", flush=True)
     finally:

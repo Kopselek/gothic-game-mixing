@@ -5,10 +5,16 @@
 !/.gitignore
 !/.gitmodules
 !/README.md
+!/CLAUDE.md
 !/LICENSE
 !/tools/
 !/plugin/
 !/mashups/
+!/.claude/
+
+# .claude: only the shared Claude Code skills (settings and anything local stay local)
+/.claude/*
+!/.claude/skills/
 
 # tools: the shared Python sources only (no generated previews, caches or extracted data)
 /tools/*

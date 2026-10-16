@@ -5078,13 +5078,27 @@ namespace GOTHIC_NAMESPACE
 
 	void __fastcall zCView_DrawItems(zCView* self, void* vtable);
 	auto Hook_zCView_DrawItems = Union::CreateHook(SIGNATURE_OF(&zCView::DrawItems), &zCView_DrawItems, Union::HookType::Hook_Detours);
+	// Gothic 2's camera fades the hero as it comes close to him (zCAICamera::DoAI: his visualAlpha, down
+	// to 0 with a wall behind him), and the renderer can be left drawing with a constant alpha then
+	// (zRND_ALPHA_SOURCE_CONSTANT, his): zCRnd_D3D::DrawPolySimple, which every 2D quad goes through,
+	// takes it, and the radar and the HUD's views would be gone. They take their textures' alpha.
 	void __fastcall zCView_DrawItems(zCView* self, void* vtable)
 	{
 		if (self == screen && CJ::CompileRun())
 			CJ::Compile();
-		if (self == screen)
-			CJ::Radar::Draw();
+		if (self != screen || !zrenderer)
+		{
+			Hook_zCView_DrawItems(self, vtable);
+			return;
+		}
+		zTRnd_AlphaBlendSource source = zrenderer->GetAlphaBlendSource(), material = zRND_ALPHA_SOURCE_MATERIAL;
+		float factor = zrenderer->GetAlphaBlendFactor(), one = 1.0f;
+		zrenderer->SetAlphaBlendSource(material);
+		zrenderer->SetAlphaBlendFactor(one);
+		CJ::Radar::Draw();
 		Hook_zCView_DrawItems(self, vtable);
+		zrenderer->SetAlphaBlendSource(source);
+		zrenderer->SetAlphaBlendFactor(factor);
 	}
 
 	// GTA's clock: a game minute every real second (CClock::ms_nMillisecondsPerGameMinute 1000).

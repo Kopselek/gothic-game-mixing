@@ -27,9 +27,10 @@ Steve, his animations and everything else straight into **your own** Gothic fold
 Start the game with **`Start Gothic as Steve.bat`** in your Gothic folder, not with Steam's Play
 button.
 
-* At the end of the installation **Gothic opens once in a window and closes by itself**. The
-  installer starts it to compile Steve, his animations, the mobs and every block and item mesh, so
-  your first start doesn't have to.
+* At the end of the installation **Gothic opens once and closes by itself**, with your own video
+  settings. The installer starts it to compile Steve, his animations, the mobs and every block and
+  item mesh, so your first start doesn't have to. If Gothic can't start with your video settings
+  ("Can't create D3DX context"), the installer changes them until it does and says what it changed.
 * The start file passes `-zautoconvertdata` only if that compile run didn't finish, so Gothic
   compiles Steve on your first start instead.
 
