@@ -1,8 +1,9 @@
 @echo off
 rem Builds the mashups' Union plugins with MSVC x86, each one DLL for Gothic 1 (GothicMod.exe
 rem 1.08k_mod) and Gothic 2 Night of the Raven (Gothic2.exe 2.6):
-rem out\build\G1-G2A-Release\gta\vdf\CJMovement.vdf and out\build\G1-G2A-Release\witcher\vdf\Witcher.vdf.
-rem "build.bat CJMovement" or "build.bat Witcher" builds that one only.
+rem out\build\G1-G2A-Release\<game>\vdf\<plugin>.vdf: gta\vdf\CJMovement.vdf, witcher\vdf\Witcher.vdf,
+rem minecraft\vdf\Minecraft.vdf and sims\vdf\Sims.vdf.
+rem "build.bat CJMovement" (or Witcher, Minecraft, Sims) builds that one only.
 rem Needs Visual Studio (or its Build Tools) with the C++ workload and CMake.
 setlocal
 set "VSWHERE=%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe"

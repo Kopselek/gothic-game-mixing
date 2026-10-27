@@ -10,10 +10,11 @@ the player's own files of it. Public repo: github.com/Kopselek/gothic-game-mixin
 | `mashups/gta` | GTA San Andreas (classic PC) | CJ | `CJMovement` | `[CJMOVEMENT]`, `CJMovement.log` |
 | `mashups/witcher` | The Witcher 3 (next-gen) | Geralt | `Witcher` | `[WITCHER]`, `Witcher.log` |
 | `mashups/minecraft` | Minecraft Java Edition | Steve | `Minecraft` | `[MINECRAFT]`, `Minecraft.log` |
+| `mashups/sims` | The Sims 4 | Gothic's hero played as a Sim | `Sims` | `[SIMS]`, `Sims.log` |
 
 Gothic 1 (GothicMod.exe 1.08k_mod) is the tested base for all of them; Gothic 2 NotR (Gothic2.exe
 2.6) builds from the same sources (its status per mashup is in the root README). One installer for
-all of them (`tools/install.py --game gta|witcher|minecraft --game-dir DIR`, GUI
+all of them (`tools/install.py --game gta|witcher|minecraft|sims --game-dir DIR`, GUI
 `tools/installer_gui.py`, released as `GothicMashupInstaller.exe`); a Gothic folder holds one
 mashup at a time.
 
@@ -56,6 +57,8 @@ the user for the paths instead of guessing, and offer to write them there.
   bundles, CR2W, texture.cache, sounds and animation buffers; check it against the real files.
 - **Minecraft:** its own code is the reference for numbers and behaviour, decompiled locally with
   Vineflower outside the repo and never published.
+- **The Sims 4 formats:** s4pi / Sims4Tools (github.com/s4ptacle/Sims4Tools) and the Mod The Sims
+  wiki document its DBPF packages and resources; check them against the real files.
 - **Optional plugin** [universal-modder](https://github.com/rehan-remade/universal-modder)
   (`/plugin marketplace add rehan-remade/universal-modder`, then
   `/plugin install universal-modder@universal-modder`): skills `mod-any-game`, `mashup-mods`
@@ -86,16 +89,16 @@ the user for the paths instead of guessing, and offer to write them there.
   voices and sounds); Visual Studio 2022+ with the C++ workload and CMake; git.
 - Run plain `python`: `-I` drops the script's folder from `sys.path`, and `-s` hides user
   site-packages, where Pillow and numpy may be.
-- Plugins: `plugin\build.bat` (all) or `plugin\build.bat CJMovement|Witcher|Minecraft` -> copy
+- Plugins: `plugin\build.bat` (all) or `plugin\build.bat CJMovement|Witcher|Minecraft|Sims` -> copy
   `plugin\out\build\G1-G2A-Release\<game>\vdf\<Plugin>.vdf` to `<Gothic>\Data\`, restart the game.
   One DLL for both engines: each `Plugin.ipp` compiles for Gothic 1 and Gothic 2 NotR, hooks go
   through `SIGNATURE_OF(&Class::Method)`, content that differs uses `GOTHIC2 ? ... : ...`.
-- Install: `python tools\install.py --game <gta|witcher|minecraft> --game-dir "<other game's
+- Install: `python tools\install.py --game <gta|witcher|minecraft|sims> --game-dir "<other game's
   folder>" --gothic "<Gothic folder>" [--gothic-version 2]` (`--lang pl` picks Geralt's dub). It
   takes the built plugin from `plugin\out`. `--uninstall --gothic "<Gothic folder>"` removes the
   mashup. Each `mashups\<game>\tools\make_*.py` also runs on its own (`--help`).
 - Start with the mashup's start file in the Gothic folder (`Start Gothic with CJ.bat`,
-  `Start Gothic as Geralt.bat`, `Start Gothic as Steve.bat`), or `system\GothicMod.exe
+  `Start Gothic as Geralt.bat`, `Start Gothic as Steve.bat`, `Start Gothic as a Sim.bat`), or `system\GothicMod.exe
   -zautoconvertdata` (Gothic 2: `system\Gothic2.exe`); `-zwindow` for a window.
 - Debug: `debugLog=1` in the mashup's `Gothic.ini` section, then `<Gothic>\<Plugin>.log`; archive
   old logs before a test session.

@@ -1,7 +1,8 @@
 """Write Gothic compiled textures (-C.TEX, "ZTEX"): DXT1 with a mipmap chain, or DXT3 (with
-alpha, single level) as Gothic's own HUD textures use.
+alpha, single level) as Gothic's own HUD textures use, or one uncompressed level (write_raw_tex).
 
-Header (36 bytes): "ZTEX", version 0, format (10 = DXT1, 12 = DXT3), width, height, mip count,
+Header (36 bytes): "ZTEX", version 0, format (10 = DXT1, 12 = DXT3, 6 = ARGB_4444, ...: ZenGin's
+zTRnd_TextureFormat), width, height, mip count,
 reference width, reference height, average colour (ARGB). Mipmaps follow smallest first,
 the same layout as the game's own textures (e.g. HUM_HEAD_V0_C0-C.TEX).
 """
@@ -182,3 +183,40 @@ def write_tex(path, w, h, rgba, alpha=False):
     header = b"ZTEX" + struct.pack("<8I", 0, FORMAT_DXT3 if alpha else FORMAT_DXT1, w, h, len(levels), w, h, argb)
     with open(path, "wb") as f:
         f.write(header + b"".join(encode_dxt1(*lv, alpha=alpha) for lv in reversed(levels)))
+
+
+# Uncompressed formats, their pixels as ZenGin's own table has them (zCRenderer::GetTexFormatInfo,
+# the same in GothicMod.exe 1.08k and Gothic2.exe 2.6: bit positions in a little-endian pixel).
+FORMAT_ARGB_8888 = 0  # 4 bytes: A, R, G, B
+FORMAT_BGRA_8888 = 3  # 4 bytes: B, G, R, A (Direct3D's A8R8G8B8)
+FORMAT_ARGB_4444 = 6  # a little-endian 16-bit word: A in bits 12-15, R 8-11, G 4-7, B 0-3
+
+
+def write_raw_tex(path, w, h, rgba, fmt=FORMAT_ARGB_4444):
+    """One uncompressed level from RGBA bytes: no DXT blocks, for sharp UI art and small text.
+
+    Gothic's Direct3D 7 renderer (zCRnd_D3D::SupportsTextureFormat) takes ARGB_4444, ARGB_1555 and
+    RGB_565 as they are, DXT1 and DXT3 where the card has them, and none of the 32- or 24-bit
+    formats: a texture in one is converted when it loads (zCTexture::CalcNextBestTexFormat: 0 -> 1 ->
+    2 -> 3 -> ARGB_1555, one bit of alpha). So ARGB_4444 is the format for art with soft edges: four
+    bits per channel and the same 16 alpha levels as DXT3 (Gothic's raindrop, SKYRAINDROP-C.TEX, is
+    one). The channels are rounded to the nearest level; dither before for smooth gradients.
+    The 32-bit formats are written as the table has them, for renderers that take them. Needs numpy."""
+    np = _numpy()
+    if np is None:
+        raise RuntimeError("write_raw_tex needs numpy (run with: uv run --with numpy)")
+    a = np.frombuffer(rgba, np.uint8).reshape(-1, 4)
+    if fmt == FORMAT_ARGB_4444:
+        q = (a.astype(np.uint16) * 15 + 127) // 255
+        data = (q[:, 3] << 12 | q[:, 0] << 8 | q[:, 1] << 4 | q[:, 2]).astype("<u2").tobytes()
+    elif fmt == FORMAT_ARGB_8888:
+        data = np.ascontiguousarray(a[:, [3, 0, 1, 2]]).tobytes()
+    elif fmt == FORMAT_BGRA_8888:
+        data = np.ascontiguousarray(a[:, [2, 1, 0, 3]]).tobytes()
+    else:
+        raise ValueError(f"write_raw_tex: format {fmt} is not an uncompressed one it writes")
+    avg = a.mean(0).astype(int)
+    argb = int(avg[3]) << 24 | int(avg[0]) << 16 | int(avg[1]) << 8 | int(avg[2])
+    header = b"ZTEX" + struct.pack("<8I", 0, fmt, w, h, 1, w, h, argb)
+    with open(path, "wb") as f:
+        f.write(header + data)

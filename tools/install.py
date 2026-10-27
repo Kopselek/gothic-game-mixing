@@ -6,6 +6,7 @@ mechanics and content into Gothic:
   gta       GTA San Andreas (classic PC): play as CJ          mashups\\gta
   witcher   The Witcher 3: Wild Hunt: play as Geralt          mashups\\witcher
   minecraft Minecraft (Java Edition): play as Steve           mashups\\minecraft
+  sims      The Sims 4: play Gothic's hero as a Sim           mashups\\sims
 
 Nothing of the other game ships with the mod: the mashup's tools read your own copy of that game and
 write into your Gothic folder. Then this sets Gothic.ini up for the mashup's plugin and copies the
@@ -14,6 +15,7 @@ plugin into Data.
   python install.py --game gta --game-dir "D:\\Games\\GTA San Andreas" [--gothic DIR] [--gothic-version 1|2] [--plugin CJMovement.vdf] [--install-union]
   python install.py --game witcher --game-dir "D:\\Games\\The Witcher 3" [--lang pl] [...]
   python install.py --game minecraft --game-dir "%APPDATA%\\.minecraft" [...]
+  python install.py --game sims --game-dir "D:\\SteamLibrary\\steamapps\\common\\The Sims 4" [...]
   python install.py --uninstall [--gothic DIR]
 
 --gta DIR is short for --game gta --game-dir DIR, and --w3 DIR for --game witcher --game-dir DIR.
@@ -51,9 +53,10 @@ for _tools in sorted(glob.glob(os.path.join(REPO, "mashups", "*", "tools"))):
 
 import mashup_gta  # noqa: E402
 import mashup_minecraft  # noqa: E402
+import mashup_sims  # noqa: E402
 import mashup_witcher  # noqa: E402
 
-MASHUPS = {m.NAME: m for m in (mashup_gta, mashup_witcher, mashup_minecraft)}
+MASHUPS = {m.NAME: m for m in (mashup_gta, mashup_witcher, mashup_minecraft, mashup_sims)}
 
 
 def gothic_paths(gothic):
@@ -185,7 +188,8 @@ def install(args):
     starter = next(iter(mashup.starters(EXE[args.gothic_version])))
     print(f"\nDone: {TITLE[args.gothic_version]} with {mashup.HERO}. Start the game with "
           f"\"{os.path.join(gothic, starter)}\""
-          + ("." if compiled else f" (the first start compiles {mashup.HERO} and takes a while)."))
+          + ("." if compiled or not getattr(mashup, "COMPILE_ARG", None)
+             else f" (the first start compiles {mashup.HERO} and takes a while)."))
 
 
 def ini_value(path, section, key, value):
